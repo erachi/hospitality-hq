@@ -1,8 +1,11 @@
 """AWS Lambda handler for Hospitable webhook events.
 
 Receives real-time message.created webhooks from Hospitable via API Gateway.
-Verifies HMAC signature, classifies guest messages, drafts responses,
-and posts to Slack for human approval.
+Classifies guest messages, drafts responses, and posts to Slack for human approval.
+
+Signature verification is optional — if a webhook signing secret is configured
+in SSM, requests are verified with HMAC-SHA256. Otherwise, all requests are accepted.
+Hospitable does not currently provide signing secrets via their dashboard.
 
 CRITICAL: Never sends messages to guests. All responses are drafts
 for VJ or Maggie to review and send manually.
@@ -29,16 +32,18 @@ def webhook_handler(event, context):
     """API Gateway Lambda proxy handler for Hospitable webhooks."""
     logger.info("Webhook received")
 
-    # Step 1: Verify HMAC signature
+    # Step 1: Parse the raw body
     raw_body = event.get("body", "")
     is_base64 = event.get("isBase64Encoded", False)
     if is_base64:
         raw_body = base64.b64decode(raw_body).decode("utf-8")
 
+    # Step 1b: Verify signature if a signing secret is configured
     headers = event.get("headers", {})
     signature = headers.get("signature", headers.get("Signature", ""))
+    sig_result = verify_signature(raw_body, signature)
 
-    if not verify_signature(raw_body, signature):
+    if sig_result == "rejected":
         logger.warning("Invalid webhook signature")
         return {"statusCode": 401, "body": json.dumps({"error": "Invalid signature"})}
 
@@ -167,15 +172,24 @@ def process_webhook_message(
     return {"statusCode": 200, "body": json.dumps({"status": "processed"})}
 
 
-def verify_signature(raw_body: str, signature: str) -> bool:
-    """Verify HMAC-SHA256 signature from Hospitable webhook."""
-    if not signature:
-        return False
+def verify_signature(raw_body: str, signature: str) -> str:
+    """Verify HMAC-SHA256 signature from Hospitable webhook.
 
+    Returns:
+        "accepted" — signature valid, or no secret configured (skip verification)
+        "rejected" — secret configured but signature doesn't match
+    """
     secret = get_webhook_secret()
+
     if not secret:
-        logger.error("Webhook signing secret not configured")
-        return False
+        # No signing secret configured — accept all requests.
+        # Hospitable doesn't currently provide signing secrets.
+        logger.info("No webhook signing secret configured, skipping verification")
+        return "accepted"
+
+    if not signature:
+        logger.warning("Signing secret configured but no Signature header received")
+        return "rejected"
 
     expected = hmac.new(
         secret.encode("utf-8"),
@@ -183,4 +197,7 @@ def verify_signature(raw_body: str, signature: str) -> bool:
         hashlib.sha256,
     ).hexdigest()
 
-    return hmac.compare_digest(expected, signature)
+    if hmac.compare_digest(expected, signature):
+        return "accepted"
+
+    return "rejected"
