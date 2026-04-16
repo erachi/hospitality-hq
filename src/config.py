@@ -52,6 +52,10 @@ def get_anthropic_key() -> str:
 def get_slack_bot_token() -> str:
     return _get_secret("slack-bot-token")
 
+@lru_cache(maxsize=1)
+def get_webhook_secret() -> str:
+    return _get_secret("webhook-signing-secret")
+
 
 # --- Non-secret config (environment variables) ---
 
