@@ -44,6 +44,15 @@ def _make_webhook_event(payload_dict: dict, secret: str = WEBHOOK_SIGNING_SECRET
     }
 
 
+def _make_unsigned_webhook_event(payload_dict: dict) -> dict:
+    """Build an API Gateway proxy event without a signature header."""
+    return {
+        "body": json.dumps(payload_dict),
+        "isBase64Encoded": False,
+        "headers": {},
+    }
+
+
 @mock_aws
 @patch("webhook_handler.get_webhook_secret", return_value=WEBHOOK_SIGNING_SECRET)
 @patch("webhook_handler.HospitableClient")
@@ -93,9 +102,53 @@ def test_webhook_processes_guest_message(
 
 
 @mock_aws
+@patch("webhook_handler.get_webhook_secret", return_value="")
+@patch("webhook_handler.HospitableClient")
+@patch("webhook_handler.classify_message")
+@patch("webhook_handler.draft_response")
+@patch("webhook_handler.post_guest_alert")
+def test_webhook_accepts_without_secret(
+    mock_slack, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    dynamodb_table,
+):
+    """When no signing secret is configured, webhooks should be accepted without signature."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    mock_client.get_reservation_detail.return_value = {
+        "id": "res-uuid-123",
+        "property_id": "prop-1",
+        "property_name": "Villa Bougainvillea",
+        "checkin": "2026-04-20",
+        "checkout": "2026-04-25",
+        "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+    }
+    mock_client.get_reservation_messages.return_value = []
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    mock_classify.return_value = {
+        "category": "URGENT_MAINTENANCE",
+        "urgency": "HIGH",
+        "summary": "AC broken",
+    }
+    mock_draft.return_value = "Draft response"
+    mock_slack.return_value = {"ok": True}
+
+    # No signature header at all
+    event = _make_unsigned_webhook_event(SAMPLE_WEBHOOK_PAYLOAD)
+    result = webhook_handler(event, None)
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["status"] == "processed"
+    mock_slack.assert_called_once()
+
+
+@mock_aws
 @patch("webhook_handler.get_webhook_secret", return_value=WEBHOOK_SIGNING_SECRET)
 def test_webhook_rejects_invalid_signature(mock_secret, dynamodb_table):
-    """Webhook with invalid signature should return 401."""
+    """Webhook with invalid signature should return 401 when secret is configured."""
     event = {
         "body": json.dumps({"action": "message.created", "data": {}}),
         "isBase64Encoded": False,
@@ -208,16 +261,23 @@ def test_verify_signature_valid():
     ).hexdigest()
 
     with patch("webhook_handler.get_webhook_secret", return_value=secret):
-        assert verify_signature(body, expected) is True
+        assert verify_signature(body, expected) == "accepted"
 
 
 def test_verify_signature_invalid():
-    """Wrong signature should fail verification."""
+    """Wrong signature should be rejected when secret is configured."""
     with patch("webhook_handler.get_webhook_secret", return_value="my-secret"):
-        assert verify_signature('{"test": true}', "wrong-signature") is False
+        assert verify_signature('{"test": true}', "wrong-signature") == "rejected"
 
 
-def test_verify_signature_empty():
-    """Empty signature should fail verification."""
+def test_verify_signature_no_secret_configured():
+    """When no secret is configured, all requests should be accepted."""
+    with patch("webhook_handler.get_webhook_secret", return_value=""):
+        assert verify_signature('{"test": true}', "") == "accepted"
+        assert verify_signature('{"test": true}', "anything") == "accepted"
+
+
+def test_verify_signature_secret_but_no_header():
+    """When secret is configured but no signature header, should reject."""
     with patch("webhook_handler.get_webhook_secret", return_value="my-secret"):
-        assert verify_signature('{"test": true}', "") is False
+        assert verify_signature('{"test": true}', "") == "rejected"
