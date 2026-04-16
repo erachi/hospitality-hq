@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Hospitality HQ — Guest monitoring system for Hospitable properties.
+  Polls for new guest messages, classifies issues, drafts responses,
+  and posts to Slack for human approval.
+  Secrets are stored in SSM Parameter Store, not in environment variables.
+
+Parameters:
+  SlackChannelId:
+    Type: String
+    Description: Slack channel ID for #guest-alerts
+  PropertyUuids:
+    Type: String
+    Default: "f8236d9d-988a-4192-9d16-2927b0b9ad8e,3278e9cb-9239-487f-aa51-cbfbaf4b7570"
+    Description: Comma-separated property UUIDs to monitor
+  SSMPrefix:
+    Type: String
+    Default: "/hospitality-hq"
+    Description: SSM Parameter Store path prefix for secrets
+
+Globals:
+  Function:
+    Timeout: 120
+    Runtime: python3.12
+    MemorySize: 256
+
+Resources:
+  MonitorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-monitor
+      Handler: handler.lambda_handler
+      CodeUri: src/
+      Description: Polls Hospitable for new guest messages and posts alerts to Slack
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          SLACK_CHANNEL_ID: !Ref SlackChannelId
+          PROPERTY_UUIDS: !Ref PropertyUuids
+          DYNAMODB_TABLE: !Ref MessagesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MessagesTable
+        - SSMParameterReadPolicy:
+            ParameterName: !Sub "${SSMPrefix}/*"
+      Events:
+        ScheduledCheck:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Description: Check for new guest messages
+            Enabled: true
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: hospitality-hq-messages
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reservation_uuid
+          AttributeType: S
+        - AttributeName: message_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reservation_uuid
+          KeyType: HASH
+        - AttributeName: message_id
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+Outputs:
+  MonitorFunctionArn:
+    Description: ARN of the monitoring Lambda function
+    Value: !GetAtt MonitorFunction.Arn
+  MessagesTableName:
+    Description: Name of the DynamoDB messages table
+    Value: !Ref MessagesTable

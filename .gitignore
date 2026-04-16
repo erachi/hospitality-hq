@@ -1,0 +1,27 @@
+# Secrets & config with secrets
+samconfig.toml
+keys
+.env
+*.env.*
+
+# AWS SAM build artifacts
+.aws-sam/
+
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Lambda test output
+output.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
