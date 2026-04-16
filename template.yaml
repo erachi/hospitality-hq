@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   Hospitality HQ — Guest monitoring system for Hospitable properties.
-  Polls for new guest messages, classifies issues, drafts responses,
-  and posts to Slack for human approval.
+  Real-time webhook processing + hourly safety-net polling.
+  Classifies guest issues, drafts responses, posts to Slack for human approval.
   Secrets are stored in SSM Parameter Store, not in environment variables.
 
 Parameters:
@@ -26,13 +26,49 @@ Globals:
     MemorySize: 256
 
 Resources:
+  # --- Real-time webhook processing (Phase 2) ---
+
+  WebhookApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      Description: HTTPS endpoint for Hospitable webhook events
+
+  WebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-webhook
+      Handler: webhook_handler.webhook_handler
+      CodeUri: src/
+      Description: Processes real-time Hospitable webhook events
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          SLACK_CHANNEL_ID: !Ref SlackChannelId
+          PROPERTY_UUIDS: !Ref PropertyUuids
+          DYNAMODB_TABLE: !Ref MessagesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MessagesTable
+        - SSMParameterReadPolicy:
+            ParameterName: !Sub "${SSMPrefix}/*"
+      Events:
+        WebhookPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /webhook
+            Method: POST
+
+  # --- Hourly safety-net polling (reduced from 15 min) ---
+
   MonitorFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: hospitality-hq-monitor
       Handler: handler.lambda_handler
       CodeUri: src/
-      Description: Polls Hospitable for new guest messages and posts alerts to Slack
+      Description: Hourly safety-net poll for any missed webhook events
       Environment:
         Variables:
           SSM_PREFIX: !Ref SSMPrefix
@@ -48,9 +84,11 @@ Resources:
         ScheduledCheck:
           Type: Schedule
           Properties:
-            Schedule: rate(15 minutes)
-            Description: Check for new guest messages
+            Schedule: rate(1 hour)
+            Description: Hourly safety-net check for missed webhook events
             Enabled: true
+
+  # --- Shared resources ---
 
   MessagesTable:
     Type: AWS::DynamoDB::Table
@@ -72,9 +110,15 @@ Resources:
         Enabled: true
 
 Outputs:
+  WebhookApiUrl:
+    Description: Webhook endpoint URL — register this with Hospitable
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook"
   MonitorFunctionArn:
-    Description: ARN of the monitoring Lambda function
+    Description: ARN of the safety-net polling Lambda function
     Value: !GetAtt MonitorFunction.Arn
+  WebhookFunctionArn:
+    Description: ARN of the webhook processing Lambda function
+    Value: !GetAtt WebhookFunction.Arn
   MessagesTableName:
     Description: Name of the DynamoDB messages table
     Value: !Ref MessagesTable

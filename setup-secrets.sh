@@ -3,7 +3,7 @@
 # Hospitality HQ — Store secrets in AWS SSM Parameter Store
 #
 # Usage:
-#   ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token>
+#   ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token> [webhook-signing-secret]
 # ============================================================
 
 set -e
@@ -11,9 +11,14 @@ set -e
 PREFIX="/hospitality-hq"
 REGION="us-east-1"
 
-if [ "$#" -ne 3 ]; then
-    echo "Usage: ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token>"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+    echo "Usage: ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token> [webhook-signing-secret]"
     exit 1
+fi
+
+TOTAL=3
+if [ -n "$4" ]; then
+    TOTAL=4
 fi
 
 echo "Storing secrets in SSM Parameter Store..."
@@ -25,7 +30,7 @@ aws ssm put-parameter \
   --overwrite \
   --region "${REGION}" \
   --no-cli-pager > /dev/null
-echo "  1/3 Hospitable token stored"
+echo "  1/${TOTAL} Hospitable token stored"
 
 aws ssm put-parameter \
   --name "${PREFIX}/anthropic-api-key" \
@@ -34,7 +39,7 @@ aws ssm put-parameter \
   --overwrite \
   --region "${REGION}" \
   --no-cli-pager > /dev/null
-echo "  2/3 Claude API key stored"
+echo "  2/${TOTAL} Claude API key stored"
 
 aws ssm put-parameter \
   --name "${PREFIX}/slack-bot-token" \
@@ -43,7 +48,18 @@ aws ssm put-parameter \
   --overwrite \
   --region "${REGION}" \
   --no-cli-pager > /dev/null
-echo "  3/3 Slack bot token stored"
+echo "  3/${TOTAL} Slack bot token stored"
+
+if [ -n "$4" ]; then
+    aws ssm put-parameter \
+      --name "${PREFIX}/webhook-signing-secret" \
+      --type SecureString \
+      --value "$4" \
+      --overwrite \
+      --region "${REGION}" \
+      --no-cli-pager > /dev/null
+    echo "  4/${TOTAL} Webhook signing secret stored"
+fi
 
 echo ""
 echo "All secrets stored securely."

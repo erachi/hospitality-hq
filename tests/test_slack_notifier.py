@@ -35,6 +35,8 @@ def test_post_guest_alert_urgent(mock_token):
 
     # Verify the request was made correctly
     request_body = responses.calls[0].request.body
+    if isinstance(request_body, bytes):
+        request_body = request_body.decode("utf-8")
     assert "Villa Bougainvillea" in request_body
     assert "Jane Smith" in request_body
 
@@ -68,6 +70,8 @@ def test_post_guest_alert_positive(mock_token):
     assert result["ok"] is True
 
     request_body = responses.calls[0].request.body
+    if isinstance(request_body, bytes):
+        request_body = request_body.decode("utf-8")
     assert "No response needed" in request_body
 
 
