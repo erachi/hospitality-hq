@@ -37,10 +37,17 @@ DRAFT_RESPONSE_PROMPT = """You are a warm, professional hospitality assistant fo
 
 Your job is to draft a response to a guest message. The host will review and approve before sending.
 
+Sources of truth (use in this priority order):
+1. AUTHORITATIVE FACTS from our curated knowledge base — these are ground truth. Cite them exactly; do not contradict or paraphrase into something different.
+2. PAST GUEST Q&A — examples of how similar questions were answered before. Use these as both a style and content guide.
+3. PRECEDENTS — what we've done in similar situations in the past.
+4. Property description and Hospitable Knowledge Hub — supplemental context only, use when the above don't cover the question.
+
 Guidelines:
 - Be warm, friendly, and genuinely helpful
 - Be concise — guests don't want essays
-- If you reference property details, use the Knowledge Hub info provided
+- When a fact exists in AUTHORITATIVE FACTS, use it verbatim. Do NOT invent check-in times, wifi passwords, instructions, or policies.
+- If the guest's question isn't covered by any source, say so honestly or mark it with [HOST: verify this detail]
 - For maintenance issues, acknowledge the problem and let them know you're on it
 - For questions, give a clear direct answer
 - Never make promises about refunds or compensation without host approval — instead say something like "let me check with my team"
@@ -94,28 +101,48 @@ def draft_response(
     checkout_date: str,
     classification: dict,
     conversation_history: str = "",
+    local_kb_context: str = "",
 ) -> str:
     """Draft a response to a guest message using Claude Sonnet.
 
     Returns the draft response text.
+
+    The local KB context (already formatted by knowledge_base_loader.format_for_claude)
+    is the highest-priority source and is placed prominently in the prompt.
     """
-    context = f"""Property: {property_name}
+    header = f"""Property: {property_name}
 Guest: {guest_name}
 Check-in: {checkin_date}
 Check-out: {checkout_date}
 Issue type: {classification['category']} ({classification['urgency']} urgency)
-Issue summary: {classification['summary']}
+Issue summary: {classification['summary']}"""
 
-Property description:
-{property_description[:2000]}
+    sections = [header]
 
-Knowledge Hub context:
-{knowledge_hub_context[:3000]}"""
+    # Local KB — highest priority. Included first so Claude anchors on it.
+    if local_kb_context.strip():
+        sections.append(local_kb_context[:6000])
+
+    # Hospitable's structured Knowledge Hub — supplemental
+    if knowledge_hub_context.strip():
+        sections.append(
+            "═══ Supplemental — Hospitable Knowledge Hub ═══\n"
+            + knowledge_hub_context[:3000]
+        )
+
+    # Property description — lowest priority context
+    if property_description.strip():
+        sections.append(
+            "═══ Supplemental — Property description ═══\n"
+            + property_description[:2000]
+        )
 
     if conversation_history:
-        context += f"\n\nRecent conversation:\n{conversation_history[:2000]}"
+        sections.append(f"Recent conversation:\n{conversation_history[:2000]}")
 
-    context += f"\n\nNew guest message to respond to:\n{message_text}"
+    sections.append(f"New guest message to respond to:\n{message_text}")
+
+    context = "\n\n".join(sections)
 
     response = _get_client().messages.create(
         model=DRAFT_MODEL,

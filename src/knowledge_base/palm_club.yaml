@@ -1,0 +1,20 @@
+# The Palm Club — Knowledge Base
+# Edit this file via PR. Static section = rock-solid facts. Dynamic section = curated from past conversations.
+
+property:
+  id: "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
+  name: "The Palm Club"
+  nickname: "TODO"
+  address: "7426 E Moreland St, Scottsdale, AZ"
+
+static:
+  # TODO: populate from property docs (VJ to share)
+  check_in: {}
+  check_out: {}
+  wifi: {}
+  house_rules: []
+  emergency_contacts: {}
+
+dynamic:
+  faqs: []
+  precedents: []

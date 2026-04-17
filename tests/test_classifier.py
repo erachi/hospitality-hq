@@ -96,6 +96,37 @@ def test_draft_response_returns_text(mock_client):
 
 
 @patch("classifier._get_client")
+def test_draft_includes_local_kb_context(mock_client):
+    """Local KB context should be included in the prompt sent to Claude."""
+    mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
+        "Check-in is at 4 PM."
+    )
+
+    local_kb = (
+        "PROPERTY: Villa Bougainvillea\n\n"
+        "═══ AUTHORITATIVE FACTS ═══\n"
+        "Check In: 4:00 PM"
+    )
+
+    draft_response(
+        message_text="What time is check-in?",
+        property_name="Villa Bougainvillea",
+        property_description="desc",
+        knowledge_hub_context="",
+        local_kb_context=local_kb,
+        guest_name="Guest",
+        checkin_date="2026-04-20",
+        checkout_date="2026-04-25",
+        classification={"category": "PRE_ARRIVAL", "urgency": "MEDIUM", "summary": "Check-in time"},
+    )
+
+    call_args = mock_client.return_value.messages.create.call_args
+    prompt = call_args.kwargs["messages"][0]["content"]
+    assert "AUTHORITATIVE FACTS" in prompt
+    assert "4:00 PM" in prompt
+
+
+@patch("classifier._get_client")
 def test_draft_uses_correct_models(mock_client):
     """Classification should use Haiku, drafting should use Sonnet."""
     mock_client.return_value.messages.create.return_value = _mock_anthropic_response(

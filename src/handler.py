@@ -16,6 +16,7 @@ from hospitable_client import HospitableClient
 from state_tracker import StateTracker
 from classifier import classify_message, draft_response
 from slack_notifier import post_guest_alert
+from knowledge_base_loader import load_kb, format_for_claude, get_property_name
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -83,7 +84,16 @@ def process_reservation(
     """Process a single reservation for new guest messages."""
     res_uuid = reservation.get("id", "")
     property_id = reservation.get("property_id", "")
-    property_name = reservation.get("property_name", "Unknown Property")
+
+    # Resolve property name: prefer local KB (canonical), then Hospitable's
+    # reservation payload, then property cache, then a fallback string.
+    # The Hospitable API doesn't reliably return property_name on reservations,
+    # so we resolve it from our own KB first.
+    property_name = (
+        get_property_name(property_id)
+        or reservation.get("property_name")
+        or "Unknown Property"
+    )
 
     # Extract guest info
     guest = reservation.get("guest", {})
@@ -150,6 +160,7 @@ def process_reservation(
             property_name=property_name,
             property_description=prop_context.get("description", ""),
             knowledge_hub_context=prop_context.get("knowledge_hub", ""),
+            local_kb_context=prop_context.get("local_kb", ""),
             guest_name=guest_name,
             checkin_date=checkin,
             checkout_date=checkout,
@@ -182,18 +193,32 @@ def process_reservation(
 
 
 def load_property_context(hospitable: HospitableClient, property_uuid: str) -> dict:
-    """Load property description and Knowledge Hub for response context."""
-    context = {"description": "", "knowledge_hub": ""}
+    """Load property context for response drafting.
 
+    Merges three sources, in decreasing order of authority:
+      1. Our curated local KB (src/knowledge_base/<property>.yaml) — authoritative
+      2. Hospitable's Knowledge Hub — supplemental, fills gaps
+      3. Hospitable's property description — lowest priority
+    """
+    context = {"description": "", "knowledge_hub": "", "local_kb": ""}
+
+    # Local KB (authoritative)
+    try:
+        local_kb = load_kb(property_uuid)
+        context["local_kb"] = format_for_claude(local_kb)
+    except Exception as e:
+        logger.warning(f"Could not load local KB for {property_uuid}: {e}")
+
+    # Hospitable property description
     try:
         prop = hospitable.get_property(property_uuid)
         context["description"] = prop.get("description", "")
     except Exception as e:
         logger.warning(f"Could not load property details for {property_uuid}: {e}")
 
+    # Hospitable Knowledge Hub (supplemental)
     try:
         kb = hospitable.get_property_knowledge_hub(property_uuid)
-        # Flatten Knowledge Hub into a text summary
         kb_parts = []
         topics = kb.get("topics", [])
         if isinstance(topics, list):

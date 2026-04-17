@@ -154,6 +154,52 @@ def test_handler_does_not_reprocess_messages(
     assert body2["alerts_posted"] == 0
 
 
+@mock_aws
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.post_guest_alert")
+def test_handler_resolves_property_name_from_kb(
+    mock_slack, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+):
+    """When reservation lacks property_name, handler should resolve it from the local KB."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    # Reservation uses Villa Bougainvillea's real UUID but has NO property_name —
+    # which is the real-world Hospitable API behavior that caused "Unknown Property" in logs.
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-123",
+            "property_id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e",
+            "checkin": "2026-04-20",
+            "checkout": "2026-04-25",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-x",
+            "body": "Hi!",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": "2026-04-20T22:00:00Z",
+        }
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    mock_classify.return_value = {"category": "GENERAL", "urgency": "LOW", "summary": "hi"}
+    mock_draft.return_value = "Hi!"
+    mock_slack.return_value = {"ok": True}
+
+    lambda_handler({}, None)
+
+    # Slack should receive the canonical name from our KB, not "Unknown Property"
+    call_kwargs = mock_slack.call_args.kwargs
+    assert call_kwargs["property_name"] == "Villa Bougainvillea"
+
+
 def test_build_conversation_summary():
     """Should build a readable summary of recent messages."""
     messages = [
