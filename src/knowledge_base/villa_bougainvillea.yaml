@@ -1,0 +1,166 @@
+# Villa Bougainvillea — Knowledge Base
+# Edit this file via PR. Static section = rock-solid facts. Dynamic section = curated from past conversations.
+
+property:
+  id: "f8236d9d-988a-4192-9d16-2927b0b9ad8e"
+  name: "Villa Bougainvillea"
+  nickname: "Cooper/Anderson House 5120"
+  address: "5120 N 87th St, Scottsdale, AZ"
+  welcome_message: >-
+    We're so excited to host you at our little piece of Scottsdale paradise. Whether you're here
+    to relax, celebrate, or explore the desert beauty, we've designed Villa Bougainvillea to make
+    your stay truly unforgettable. From the cozy indoor spaces to the vibrant outdoor amenities,
+    we hope you enjoy every moment. If you need anything at all during your stay, please don't
+    hesitate to reach out — we're here to help and ensure your experience is seamless.
+
+static:
+  # ──────────────────────────────────────────────────────────────
+  # Wifi / Connectivity
+  # ──────────────────────────────────────────────────────────────
+  wifi:
+    network: "Villa Bougainvillea"
+    password: "welcome5120!!"
+
+  # ──────────────────────────────────────────────────────────────
+  # Parking
+  # ──────────────────────────────────────────────────────────────
+  parking:
+    driveway_capacity: "2 vehicles"
+    street_parking: "Not permitted"
+
+  # ──────────────────────────────────────────────────────────────
+  # Trash / Recycling
+  # ──────────────────────────────────────────────────────────────
+  trash:
+    collection_days: "Mondays and Fridays"
+    recycling_rule: "Do NOT place plastic bags in the recycling bin."
+
+  # ──────────────────────────────────────────────────────────────
+  # Regular Service (landscaping, pool)
+  # ──────────────────────────────────────────────────────────────
+  regular_service:
+    landscaping:
+      day: "Every Tuesday"
+    pool_servicing:
+      day: "Every Thursday"
+    access: "Landscapers and pool technicians access the property via the side gate — they do NOT enter the house."
+
+  # ──────────────────────────────────────────────────────────────
+  # Pool
+  # ──────────────────────────────────────────────────────────────
+  pool:
+    heating:
+      advance_notice: "At least 48 hours"
+      service_charge: "Yes — a service charge applies (amount varies)"
+      how_to_request: "Message us at least 48 hours before you'd like heating on."
+    vacuum: "Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your use."
+
+  # ──────────────────────────────────────────────────────────────
+  # Games & Outdoor Equipment
+  # ──────────────────────────────────────────────────────────────
+  games_and_floaties:
+    location: "Deck box outside."
+
+  volleyball_net:
+    removal_instructions: >-
+      The net is secured to the entire top portion of the poles. If you'd like to remove it, push
+      the metal tabs on the poles right below the edge of the net — this releases the upper portion
+      for removal. Do NOT attempt to disconnect the net from the upper part of the pole.
+
+  # ──────────────────────────────────────────────────────────────
+  # TVs / Entertainment
+  # ──────────────────────────────────────────────────────────────
+  tvs:
+    direct_roku:
+      rooms: ["Living room", "Bunk room", "Back bedroom"]
+      instructions: "Set up to go directly into guest mode using Roku remotes only."
+    tv_remote_required:
+      rooms: ["Green room", "Second-to-back bedroom"]
+      instructions: "Turn on with TV remote and go directly to HDMI. Then switch to Roku remote — will go into guest mode."
+
+  projector:
+    location: "Master bedroom closet."
+    return_policy: "Return projector, stand, and all accessories to the master bedroom closet after each use."
+    setup_steps:
+      - "Strap the projector to the stand and set up behind the bean bags (near the tree is best)."
+      - "Plug speakers in with the black extension cord; grey cord is for the projector."
+      - "Turn the projector on using remote or button on projector."
+      - "Focus the lens for crisp picture on screen."
+      - "Use main remote to navigate to Bluetooth. Speakers must be plugged in to pair."
+      - "Choose to screen-mirror from your device or use Roku."
+      - "Use main remote to navigate to HDMI to access Roku."
+      - "Once in Roku, use Roku remote to navigate to apps."
+
+  string_lights:
+    switch_location: "Outside, to the right of the sliding glass door under the outlet cover."
+
+  # ──────────────────────────────────────────────────────────────
+  # Outdoor Grills / Firepit
+  # ──────────────────────────────────────────────────────────────
+  firepit:
+    fuel: "Propane"
+    propane_storage: "White table beside firepit"
+    lighting_steps:
+      - "Turn on the gas at the tank."
+      - "Push and hold the igniter button."
+      - "While holding the button, push and turn the control knob to LOW."
+      - "Once ignited, control the temperature with the control knob."
+    shutdown: "Turn off both the flame and propane when done. Allow pit to fully cool before replacing the cover."
+    maintenance: "Igniter has an AA battery that needs periodic replacement."
+    troubleshooting:
+      does_not_light:
+        - "Igniter pin and burner are wet → dry off with a cloth."
+        - "Igniter battery is incorrectly installed or needs replacement."
+        - "Igniter pin is broken → contact manufacturer for replacement."
+        - "Rocks covering spark guard → remove the rocks and try again."
+      burner_does_not_light_with_match:
+        - "No gas flow → check the tank."
+        - "Regulator isn't connected securely → tighten to the gas tank."
+        - "Gas flow is obstructed → check all hoses for kinks and bends."
+        - "Burner holes are clogged → turn all gas flow connections off, insert an opened paper clip into each burner port to clear them."
+      excess_black_smoke:
+        - "Flame is obstructed at burner holes → check that burner holes are free of small lava rocks."
+        - "Regulator hose is kinked → straighten hose of all bends."
+      flame_blows_out_easily:
+        - "High or gusting winds → increase flame to HIGH."
+        - "No gas flow → check that tank isn't empty."
+        - "Excess flow safety valve activated → see sudden-drop-in-gas-flow section."
+      sudden_drop_in_gas_flow:
+        cause: "Tank is empty OR excess flow safety valve activated."
+        reset_steps:
+          - "Turn the control knob to OFF."
+          - "Close the tank valve and disconnect the propane tank."
+          - "Turn the control knob to HIGH, wait 1 minute."
+          - "Turn the control knob back to OFF."
+          - "Reconnect the propane tank."
+          - "Light the firepit as usual."
+
+  bbq:
+    type: "Gas BBQ (propane)"
+    operation: "Turn on propane, hold down the ignite button while turning the burners on."
+    tool_location: "Grill tools stored in the kitchen."
+
+  # ──────────────────────────────────────────────────────────────
+  # Safety / Supplies
+  # ──────────────────────────────────────────────────────────────
+  first_aid_kit:
+    location: "Drawer of the primary bathroom."
+
+  # ──────────────────────────────────────────────────────────────
+  # Not yet captured
+  # ──────────────────────────────────────────────────────────────
+  pets:
+    allowed: false
+    policy: "No pets allowed."
+
+  check_in: {}  # TODO
+  check_out: {}  # TODO
+  house_rules: []  # TODO (quiet hours, etc.)
+  emergency_contacts: {}  # TODO
+
+# ──────────────────────────────────────────────────────────────────
+# Dynamic — populated by scripts/curate_knowledge_base.py
+# ──────────────────────────────────────────────────────────────────
+dynamic:
+  faqs: []
+  precedents: []
