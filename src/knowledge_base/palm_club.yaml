@@ -6,7 +6,11 @@ property:
   name: "The Palm Club"
   nickname: "Moreland 7426"
   address: "7426 E Moreland St, Scottsdale, AZ"
-  welcome_message: "Welcome to The Palm Club in Scottsdale. We hope you enjoy your stay. Please reach out with any questions you might have about the home or area."
+  welcome_message: >-
+    Welcome to your ultimate Scottsdale retreat. We're so excited to host you at The Palm Club,
+    your home base for relaxing, celebrating, and enjoying everything Scottsdale has to offer.
+    Whether you're lounging by the pool, playing pickleball, or enjoying the game room with friends,
+    we hope you make the most of every moment here.
 
 static:
   # ──────────────────────────────────────────────────────────────
@@ -17,54 +21,155 @@ static:
     password: "Welcome7426!!"
 
   # ──────────────────────────────────────────────────────────────
+  # Parking
+  # ──────────────────────────────────────────────────────────────
+  parking:
+    driveway_capacity: "2 vehicles"
+    street_parking: "Not permitted. All vehicles must be parked in the driveway during the stay."
+
+  # ──────────────────────────────────────────────────────────────
+  # Trash / Recycling
+  # ──────────────────────────────────────────────────────────────
+  trash:
+    collection_days: "Mondays and Fridays"
+    recycling_rule: "Do NOT place plastic bags in the recycling bin."
+
+  # ──────────────────────────────────────────────────────────────
+  # Regular Service (landscaping, pool)
+  # ──────────────────────────────────────────────────────────────
+  regular_service:
+    landscaping:
+      day: "Every Tuesday"
+    pool_servicing:
+      day: "Every Tuesday (same day as landscaping)"
+    access: "Landscapers and pool technicians access the property via the side gate — they do NOT enter the house."
+
+  # ──────────────────────────────────────────────────────────────
   # House Rules
   # ──────────────────────────────────────────────────────────────
   quiet_hours:
-    hours: "10 PM to 8 AM"
-    reason: "We have neighbors who have work and school in the morning."
-    enforcement: "Enforced by the city."
+    hours: "10 PM to 7 AM"
+    scope: "Includes outdoor areas and the game room karaoke system."
+    reason: "Respect for our neighbors."
+    enforcement: "Please keep noise levels low during these hours."
 
   # ──────────────────────────────────────────────────────────────
-  # Outdoor Space
+  # Pool
   # ──────────────────────────────────────────────────────────────
-  grill:
-    fuel: "Natural gas (directly connected — no propane needed)"
-    operation: "Push and turn each individual knob counterclockwise to the 9 o'clock position. Then push the ignite button (on the right)."
+  pool:
+    heating:
+      advance_notice: "At least 48 hours"
+      service_charge: "$250"
+      typical_temperature: "~85°F (depending on outdoor temperature)"
+      how_to_request: "Message us at least 48 hours before you'd like heating on."
+    vacuum: "Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your stay."
+    rules:
+      - "No glass in or around the pool area"
+      - "No diving"
+      - "Children must be supervised at all times"
+      - "Please rinse off lotions or sunscreen before entering when possible"
+      - "Please return pool floats to the deck box after use"
+      - "Please deflate floats after use so they remain in good condition for future guests"
+    floats_location: "Deck box outside"
 
-  firepit:
-    fuel: "Natural gas (directly connected — no propane needed)"
-    operation: "Turn the silver knob counterclockwise until you hear the gas. Then use a long lighter to ignite the flame."
-    lighter_location: "Kitchen drawer with the BBQ utensils."
+  # ──────────────────────────────────────────────────────────────
+  # Hot Tub
+  # ──────────────────────────────────────────────────────────────
+  hot_tub:
+    rules:
+      - "No glass in or around the hot tub"
+      - "Please rinse your feet before entering"
+      - "Avoid using lotions, oils, or sunscreen in the hot tub"
+      - "Keep the cover closed when not in use to maintain heat and cleanliness"
+      - "Children must be supervised at all times"
 
-  string_lights:
-    outdoor_dining_table:
-      switch_location: "Inside the sliding glass door."
-    hot_tub_area:
-      switch_location: "On the left-hand side of the pergola."
-    other: "All other outdoor lights come on automatically as the sun sets."
+  # ──────────────────────────────────────────────────────────────
+  # Outdoor Amenities & Games
+  # ──────────────────────────────────────────────────────────────
+  outdoor_games:
+    available:
+      - "Pickleball court"
+      - "Cornhole"
+      - "Connect 4"
+      - "Pool volleyball"
+    floats_location: "Deck box outside"
+    inflatables_pump: "Top cabinet in the laundry room (electric pump)"
 
   pickleball:
-    paddle_location: "Laundry room."
-    ball_location: "First drawer in the laundry room (extra PB balls)."
-
-  inflatables:
-    pump_location: "Top cabinet of the laundry room (electric pump)."
+    paddle_location: "Laundry room"
+    ball_location: "First drawer in the laundry room"
+    rules:
+      - "Return paddles to the laundry room after use"
+      - "Be mindful of neighbors when playing early morning or late at night"
+      - "Do not hang on the net"
+      - "Keep food and drinks off the court"
 
   # ──────────────────────────────────────────────────────────────
-  # Indoor Space
+  # Game Room
   # ──────────────────────────────────────────────────────────────
-  tvs:
-    type: "All TVs are Roku enabled."
-    setup: "Enter your check-out date, then sign into your own apps. You will be automatically signed out upon checkout date."
-
-  led_signs:
-    control: "Each sign has its own remote, stored in the respective room."
-    etiquette: "Please turn off the lights at the end of each day."
+  game_room:
+    amenities:
+      - "Pool table"
+      - "Karaoke machine"
+    rules:
+      - "Turn off all table lamps when finished."
+      - "Be mindful of quiet hours when using the karaoke system."
 
   karaoke:
-    location: "Garage (machine and microphones)."
-    connectivity: "Bluetooth enabled — instructions are included with the machine."
-    restriction: "Not to be used during quiet hours (10 PM – 8 AM) — will result in noise complaints from neighbors."
+    location: "Game room (machine + microphones)"
+    connectivity: "Bluetooth enabled — instructions included with the machine."
+    restriction: "Not to be used during quiet hours (10 PM – 7 AM)."
+
+  # ──────────────────────────────────────────────────────────────
+  # Get Ready Room
+  # ──────────────────────────────────────────────────────────────
+  get_ready_room:
+    description: "A dedicated space for guests to prepare for events, nights out, or special occasions."
+    etiquette: "Please treat it with care."
+
+  # ──────────────────────────────────────────────────────────────
+  # BBQ Grill
+  # ──────────────────────────────────────────────────────────────
+  grill:
+    fuel: "Natural gas (directly connected — no propane tank required)"
+    operation_steps:
+      - "Push and turn each burner knob counterclockwise to the 9 o'clock position."
+      - "Press the ignite button on the right side."
+      - "Adjust burners as needed for cooking."
+    tool_location: "Kitchen drawer"
+
+  # ──────────────────────────────────────────────────────────────
+  # Firepit
+  # ──────────────────────────────────────────────────────────────
+  firepit:
+    fuel: "Natural gas (directly connected)"
+    operation_steps:
+      - "Turn the silver knob counterclockwise until you hear gas flow."
+      - "Use the long lighter (kitchen drawer with BBQ utensils) to ignite the flame."
+      - "Adjust the flame as needed using the control knob."
+    shutdown: "Ensure the fire pit is fully turned off after use."
+
+  # ──────────────────────────────────────────────────────────────
+  # Outdoor Lighting
+  # ──────────────────────────────────────────────────────────────
+  string_lights:
+    outdoor_dining_table:
+      switch_location: "Near the sliding glass door"
+    hot_tub_area:
+      switch_location: "On the left side of the pergola"
+    other: "All other outdoor lighting will turn on automatically."
+
+  # ──────────────────────────────────────────────────────────────
+  # TVs / Entertainment
+  # ──────────────────────────────────────────────────────────────
+  tvs:
+    count: 4
+    locations:
+      - "Living Room"
+      - "Game Room"
+      - "Bedroom 1"
+      - "Bedroom 3"
+    setup: "All TVs use Roku and should automatically enter Roku Guest Mode, allowing you to log into your personal streaming services during your stay."
 
   # ──────────────────────────────────────────────────────────────
   # Safety
@@ -75,18 +180,18 @@ static:
       - "Under the kitchen sink"
 
   first_aid_kit:
-    location: "Top cabinet in the laundry room."
+    location: "Top cabinet in the laundry room"
+
+  security:
+    exterior_cameras: "Installed outside the home. No cameras inside."
+    noise_monitoring: "Noise monitoring devices may be present to ensure quiet hours and occupancy limits are respected. These devices do NOT record conversations."
 
   # ──────────────────────────────────────────────────────────────
-  # Not yet captured — populate when info is available
+  # Not yet captured
   # ──────────────────────────────────────────────────────────────
   check_in: {}  # TODO
   check_out: {}  # TODO
-  parking: {}  # TODO
-  pool: {}  # TODO
-  hot_tub: {}  # TODO
   pets: {}  # TODO
-  trash: {}  # TODO
   emergency_contacts: {}  # TODO
 
 # ──────────────────────────────────────────────────────────────────

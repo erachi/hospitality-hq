@@ -6,27 +6,69 @@ property:
   name: "Villa Bougainvillea"
   nickname: "Cooper/Anderson House 5120"
   address: "5120 N 87th St, Scottsdale, AZ"
+  welcome_message: >-
+    We're so excited to host you at our little piece of Scottsdale paradise. Whether you're here
+    to relax, celebrate, or explore the desert beauty, we've designed Villa Bougainvillea to make
+    your stay truly unforgettable. From the cozy indoor spaces to the vibrant outdoor amenities,
+    we hope you enjoy every moment. If you need anything at all during your stay, please don't
+    hesitate to reach out — we're here to help and ensure your experience is seamless.
 
 static:
-  # ──────────────────────────────────────────────────────────────
-  # Check-in / Check-out
-  # ──────────────────────────────────────────────────────────────
-  check_in:
-    time: "TODO: confirm check-in time"
-    process: "TODO: confirm check-in process"
-  check_out:
-    time: "TODO: confirm check-out time"
-    process: "TODO: confirm check-out process"
-
   # ──────────────────────────────────────────────────────────────
   # Wifi / Connectivity
   # ──────────────────────────────────────────────────────────────
   wifi:
-    network: "TODO: add network name"
-    password: "TODO: add password"
+    network: "Villa Bougainvillea"
+    password: "welcome5120!!"
 
   # ──────────────────────────────────────────────────────────────
-  # Entertainment
+  # Parking
+  # ──────────────────────────────────────────────────────────────
+  parking:
+    driveway_capacity: "2 vehicles"
+    street_parking: "Not permitted"
+
+  # ──────────────────────────────────────────────────────────────
+  # Trash / Recycling
+  # ──────────────────────────────────────────────────────────────
+  trash:
+    collection_days: "Mondays and Fridays"
+    recycling_rule: "Do NOT place plastic bags in the recycling bin."
+
+  # ──────────────────────────────────────────────────────────────
+  # Regular Service (landscaping, pool)
+  # ──────────────────────────────────────────────────────────────
+  regular_service:
+    landscaping:
+      day: "Every Tuesday"
+    pool_servicing:
+      day: "Every Thursday"
+    access: "Landscapers and pool technicians access the property via the side gate — they do NOT enter the house."
+
+  # ──────────────────────────────────────────────────────────────
+  # Pool
+  # ──────────────────────────────────────────────────────────────
+  pool:
+    heating:
+      advance_notice: "At least 48 hours"
+      service_charge: "Yes — a service charge applies (amount varies)"
+      how_to_request: "Message us at least 48 hours before you'd like heating on."
+    vacuum: "Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your use."
+
+  # ──────────────────────────────────────────────────────────────
+  # Games & Outdoor Equipment
+  # ──────────────────────────────────────────────────────────────
+  games_and_floaties:
+    location: "Deck box outside."
+
+  volleyball_net:
+    removal_instructions: >-
+      The net is secured to the entire top portion of the poles. If you'd like to remove it, push
+      the metal tabs on the poles right below the edge of the net — this releases the upper portion
+      for removal. Do NOT attempt to disconnect the net from the upper part of the pole.
+
+  # ──────────────────────────────────────────────────────────────
+  # TVs / Entertainment
   # ──────────────────────────────────────────────────────────────
   tvs:
     direct_roku:
@@ -37,7 +79,8 @@ static:
       instructions: "Turn on with TV remote and go directly to HDMI. Then switch to Roku remote — will go into guest mode."
 
   projector:
-    location: "Stored in master bedroom closet. Return after each use."
+    location: "Master bedroom closet."
+    return_policy: "Return projector, stand, and all accessories to the master bedroom closet after each use."
     setup_steps:
       - "Strap the projector to the stand and set up behind the bean bags (near the tree is best)."
       - "Plug speakers in with the black extension cord; grey cord is for the projector."
@@ -52,7 +95,7 @@ static:
     switch_location: "Outside, to the right of the sliding glass door under the outlet cover."
 
   # ──────────────────────────────────────────────────────────────
-  # Outdoor
+  # Outdoor Grills / Firepit
   # ──────────────────────────────────────────────────────────────
   firepit:
     fuel: "Propane"
@@ -93,16 +136,9 @@ static:
           - "Light the firepit as usual."
 
   bbq:
-    type: "Gas BBQ"
+    type: "Gas BBQ (propane)"
     operation: "Turn on propane, hold down the ignite button while turning the burners on."
     tool_location: "Grill tools stored in the kitchen."
-
-  volleyball_net:
-    removal_instructions: "The net is secured to the entire top portion of the poles. If you want to remove the net, push the metal tabs on the poles right below the edge of the net — this releases the upper portion for removal. Do NOT attempt to disconnect the net from the upper part of the pole."
-
-  yard_toys:
-    location: "Storage crate on the side of the house near the BBQ."
-    notes: "Inflatable pump also stored here."
 
   # ──────────────────────────────────────────────────────────────
   # Safety / Supplies
@@ -111,19 +147,13 @@ static:
     location: "Drawer of the primary bathroom."
 
   # ──────────────────────────────────────────────────────────────
-  # Rules / Policies — populate as confirmed
+  # Not yet captured
   # ──────────────────────────────────────────────────────────────
-  house_rules: []  # TODO: add if any
-
-  emergency_contacts: {}  # TODO: add VJ / Maggie / backup contacts
-
-  # ──────────────────────────────────────────────────────────────
-  # Other facts not yet captured
-  # ──────────────────────────────────────────────────────────────
-  parking: {}  # TODO
-  pool: {}  # TODO
+  check_in: {}  # TODO
+  check_out: {}  # TODO
+  house_rules: []  # TODO (quiet hours, etc.)
+  emergency_contacts: {}  # TODO
   pets: {}  # TODO
-  trash: {}  # TODO
 
 # ──────────────────────────────────────────────────────────────────
 # Dynamic — populated by scripts/curate_knowledge_base.py
