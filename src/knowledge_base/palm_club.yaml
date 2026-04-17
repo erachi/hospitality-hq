@@ -4,17 +4,94 @@
 property:
   id: "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
   name: "The Palm Club"
-  nickname: "TODO"
+  nickname: "Moreland 7426"
   address: "7426 E Moreland St, Scottsdale, AZ"
+  welcome_message: "Welcome to The Palm Club in Scottsdale. We hope you enjoy your stay. Please reach out with any questions you might have about the home or area."
 
 static:
-  # TODO: populate from property docs (VJ to share)
-  check_in: {}
-  check_out: {}
-  wifi: {}
-  house_rules: []
-  emergency_contacts: {}
+  # ──────────────────────────────────────────────────────────────
+  # Wifi / Connectivity
+  # ──────────────────────────────────────────────────────────────
+  wifi:
+    network: "Moreland"
+    password: "Welcome7426!!"
 
+  # ──────────────────────────────────────────────────────────────
+  # House Rules
+  # ──────────────────────────────────────────────────────────────
+  quiet_hours:
+    hours: "10 PM to 8 AM"
+    reason: "We have neighbors who have work and school in the morning."
+    enforcement: "Enforced by the city."
+
+  # ──────────────────────────────────────────────────────────────
+  # Outdoor Space
+  # ──────────────────────────────────────────────────────────────
+  grill:
+    fuel: "Natural gas (directly connected — no propane needed)"
+    operation: "Push and turn each individual knob counterclockwise to the 9 o'clock position. Then push the ignite button (on the right)."
+
+  firepit:
+    fuel: "Natural gas (directly connected — no propane needed)"
+    operation: "Turn the silver knob counterclockwise until you hear the gas. Then use a long lighter to ignite the flame."
+    lighter_location: "Kitchen drawer with the BBQ utensils."
+
+  string_lights:
+    outdoor_dining_table:
+      switch_location: "Inside the sliding glass door."
+    hot_tub_area:
+      switch_location: "On the left-hand side of the pergola."
+    other: "All other outdoor lights come on automatically as the sun sets."
+
+  pickleball:
+    paddle_location: "Laundry room."
+    ball_location: "First drawer in the laundry room (extra PB balls)."
+
+  inflatables:
+    pump_location: "Top cabinet of the laundry room (electric pump)."
+
+  # ──────────────────────────────────────────────────────────────
+  # Indoor Space
+  # ──────────────────────────────────────────────────────────────
+  tvs:
+    type: "All TVs are Roku enabled."
+    setup: "Enter your check-out date, then sign into your own apps. You will be automatically signed out upon checkout date."
+
+  led_signs:
+    control: "Each sign has its own remote, stored in the respective room."
+    etiquette: "Please turn off the lights at the end of each day."
+
+  karaoke:
+    location: "Garage (machine and microphones)."
+    connectivity: "Bluetooth enabled — instructions are included with the machine."
+    restriction: "Not to be used during quiet hours (10 PM – 8 AM) — will result in noise complaints from neighbors."
+
+  # ──────────────────────────────────────────────────────────────
+  # Safety
+  # ──────────────────────────────────────────────────────────────
+  fire_extinguishers:
+    locations:
+      - "Next to the grill (outdoor)"
+      - "Under the kitchen sink"
+
+  first_aid_kit:
+    location: "Top cabinet in the laundry room."
+
+  # ──────────────────────────────────────────────────────────────
+  # Not yet captured — populate when info is available
+  # ──────────────────────────────────────────────────────────────
+  check_in: {}  # TODO
+  check_out: {}  # TODO
+  parking: {}  # TODO
+  pool: {}  # TODO
+  hot_tub: {}  # TODO
+  pets: {}  # TODO
+  trash: {}  # TODO
+  emergency_contacts: {}  # TODO
+
+# ──────────────────────────────────────────────────────────────────
+# Dynamic — populated by scripts/curate_knowledge_base.py
+# ──────────────────────────────────────────────────────────────────
 dynamic:
   faqs: []
   precedents: []
