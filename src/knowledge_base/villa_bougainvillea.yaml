@@ -149,11 +149,14 @@ static:
   # ──────────────────────────────────────────────────────────────
   # Not yet captured
   # ──────────────────────────────────────────────────────────────
+  pets:
+    allowed: false
+    policy: "No pets allowed."
+
   check_in: {}  # TODO
   check_out: {}  # TODO
   house_rules: []  # TODO (quiet hours, etc.)
   emergency_contacts: {}  # TODO
-  pets: {}  # TODO
 
 # ──────────────────────────────────────────────────────────────────
 # Dynamic — populated by scripts/curate_knowledge_base.py

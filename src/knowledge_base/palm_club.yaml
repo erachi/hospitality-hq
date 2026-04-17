@@ -189,9 +189,12 @@ static:
   # ──────────────────────────────────────────────────────────────
   # Not yet captured
   # ──────────────────────────────────────────────────────────────
+  pets:
+    allowed: false
+    policy: "No pets allowed."
+
   check_in: {}  # TODO
   check_out: {}  # TODO
-  pets: {}  # TODO
   emergency_contacts: {}  # TODO
 
 # ──────────────────────────────────────────────────────────────────
