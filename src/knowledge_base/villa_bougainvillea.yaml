@@ -1,166 +1,1109 @@
-# Villa Bougainvillea — Knowledge Base
-# Edit this file via PR. Static section = rock-solid facts. Dynamic section = curated from past conversations.
-
 property:
-  id: "f8236d9d-988a-4192-9d16-2927b0b9ad8e"
-  name: "Villa Bougainvillea"
-  nickname: "Cooper/Anderson House 5120"
-  address: "5120 N 87th St, Scottsdale, AZ"
-  welcome_message: >-
-    We're so excited to host you at our little piece of Scottsdale paradise. Whether you're here
-    to relax, celebrate, or explore the desert beauty, we've designed Villa Bougainvillea to make
-    your stay truly unforgettable. From the cozy indoor spaces to the vibrant outdoor amenities,
-    we hope you enjoy every moment. If you need anything at all during your stay, please don't
-    hesitate to reach out — we're here to help and ensure your experience is seamless.
-
+  id: f8236d9d-988a-4192-9d16-2927b0b9ad8e
+  name: Villa Bougainvillea
+  nickname: Cooper/Anderson House 5120
+  address: 5120 N 87th St, Scottsdale, AZ
+  welcome_message: We're so excited to host you at our little piece of Scottsdale paradise. Whether you're
+    here to relax, celebrate, or explore the desert beauty, we've designed Villa Bougainvillea to make
+    your stay truly unforgettable. From the cozy indoor spaces to the vibrant outdoor amenities, we hope
+    you enjoy every moment. If you need anything at all during your stay, please don't hesitate to reach
+    out — we're here to help and ensure your experience is seamless.
 static:
-  # ──────────────────────────────────────────────────────────────
-  # Wifi / Connectivity
-  # ──────────────────────────────────────────────────────────────
   wifi:
-    network: "Villa Bougainvillea"
-    password: "welcome5120!!"
-
-  # ──────────────────────────────────────────────────────────────
-  # Parking
-  # ──────────────────────────────────────────────────────────────
+    network: Villa Bougainvillea
+    password: welcome5120!!
   parking:
-    driveway_capacity: "2 vehicles"
-    street_parking: "Not permitted"
-
-  # ──────────────────────────────────────────────────────────────
-  # Trash / Recycling
-  # ──────────────────────────────────────────────────────────────
+    driveway_capacity: 2 vehicles
+    street_parking: Not permitted
   trash:
-    collection_days: "Mondays and Fridays"
-    recycling_rule: "Do NOT place plastic bags in the recycling bin."
-
-  # ──────────────────────────────────────────────────────────────
-  # Regular Service (landscaping, pool)
-  # ──────────────────────────────────────────────────────────────
+    collection_days: Mondays and Fridays
+    recycling_rule: Do NOT place plastic bags in the recycling bin.
   regular_service:
     landscaping:
-      day: "Every Tuesday"
+      day: Every Tuesday
     pool_servicing:
-      day: "Every Thursday"
-    access: "Landscapers and pool technicians access the property via the side gate — they do NOT enter the house."
-
-  # ──────────────────────────────────────────────────────────────
-  # Pool
-  # ──────────────────────────────────────────────────────────────
+      day: Every Thursday
+    access: Landscapers and pool technicians access the property via the side gate — they do NOT enter
+      the house.
   pool:
     heating:
-      advance_notice: "At least 48 hours"
-      service_charge: "Yes — a service charge applies (amount varies)"
-      how_to_request: "Message us at least 48 hours before you'd like heating on."
-    vacuum: "Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your use."
-
-  # ──────────────────────────────────────────────────────────────
-  # Games & Outdoor Equipment
-  # ──────────────────────────────────────────────────────────────
+      advance_notice: At least 48 hours
+      service_charge: Yes — a service charge applies (amount varies)
+      how_to_request: Message us at least 48 hours before you'd like heating on.
+    vacuum: Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your use.
   games_and_floaties:
-    location: "Deck box outside."
-
+    location: Deck box outside.
   volleyball_net:
-    removal_instructions: >-
-      The net is secured to the entire top portion of the poles. If you'd like to remove it, push
-      the metal tabs on the poles right below the edge of the net — this releases the upper portion
-      for removal. Do NOT attempt to disconnect the net from the upper part of the pole.
-
-  # ──────────────────────────────────────────────────────────────
-  # TVs / Entertainment
-  # ──────────────────────────────────────────────────────────────
+    removal_instructions: The net is secured to the entire top portion of the poles. If you'd like to
+      remove it, push the metal tabs on the poles right below the edge of the net — this releases the
+      upper portion for removal. Do NOT attempt to disconnect the net from the upper part of the pole.
   tvs:
     direct_roku:
-      rooms: ["Living room", "Bunk room", "Back bedroom"]
-      instructions: "Set up to go directly into guest mode using Roku remotes only."
+      rooms:
+      - Living room
+      - Bunk room
+      - Back bedroom
+      instructions: Set up to go directly into guest mode using Roku remotes only.
     tv_remote_required:
-      rooms: ["Green room", "Second-to-back bedroom"]
-      instructions: "Turn on with TV remote and go directly to HDMI. Then switch to Roku remote — will go into guest mode."
-
+      rooms:
+      - Green room
+      - Second-to-back bedroom
+      instructions: Turn on with TV remote and go directly to HDMI. Then switch to Roku remote — will
+        go into guest mode.
   projector:
-    location: "Master bedroom closet."
-    return_policy: "Return projector, stand, and all accessories to the master bedroom closet after each use."
+    location: Master bedroom closet.
+    return_policy: Return projector, stand, and all accessories to the master bedroom closet after each
+      use.
     setup_steps:
-      - "Strap the projector to the stand and set up behind the bean bags (near the tree is best)."
-      - "Plug speakers in with the black extension cord; grey cord is for the projector."
-      - "Turn the projector on using remote or button on projector."
-      - "Focus the lens for crisp picture on screen."
-      - "Use main remote to navigate to Bluetooth. Speakers must be plugged in to pair."
-      - "Choose to screen-mirror from your device or use Roku."
-      - "Use main remote to navigate to HDMI to access Roku."
-      - "Once in Roku, use Roku remote to navigate to apps."
-
+    - Strap the projector to the stand and set up behind the bean bags (near the tree is best).
+    - Plug speakers in with the black extension cord; grey cord is for the projector.
+    - Turn the projector on using remote or button on projector.
+    - Focus the lens for crisp picture on screen.
+    - Use main remote to navigate to Bluetooth. Speakers must be plugged in to pair.
+    - Choose to screen-mirror from your device or use Roku.
+    - Use main remote to navigate to HDMI to access Roku.
+    - Once in Roku, use Roku remote to navigate to apps.
   string_lights:
-    switch_location: "Outside, to the right of the sliding glass door under the outlet cover."
-
-  # ──────────────────────────────────────────────────────────────
-  # Outdoor Grills / Firepit
-  # ──────────────────────────────────────────────────────────────
+    switch_location: Outside, to the right of the sliding glass door under the outlet cover.
   firepit:
-    fuel: "Propane"
-    propane_storage: "White table beside firepit"
+    fuel: Propane
+    propane_storage: White table beside firepit
     lighting_steps:
-      - "Turn on the gas at the tank."
-      - "Push and hold the igniter button."
-      - "While holding the button, push and turn the control knob to LOW."
-      - "Once ignited, control the temperature with the control knob."
-    shutdown: "Turn off both the flame and propane when done. Allow pit to fully cool before replacing the cover."
-    maintenance: "Igniter has an AA battery that needs periodic replacement."
+    - Turn on the gas at the tank.
+    - Push and hold the igniter button.
+    - While holding the button, push and turn the control knob to LOW.
+    - Once ignited, control the temperature with the control knob.
+    shutdown: Turn off both the flame and propane when done. Allow pit to fully cool before replacing
+      the cover.
+    maintenance: Igniter has an AA battery that needs periodic replacement.
     troubleshooting:
       does_not_light:
-        - "Igniter pin and burner are wet → dry off with a cloth."
-        - "Igniter battery is incorrectly installed or needs replacement."
-        - "Igniter pin is broken → contact manufacturer for replacement."
-        - "Rocks covering spark guard → remove the rocks and try again."
+      - Igniter pin and burner are wet → dry off with a cloth.
+      - Igniter battery is incorrectly installed or needs replacement.
+      - Igniter pin is broken → contact manufacturer for replacement.
+      - Rocks covering spark guard → remove the rocks and try again.
       burner_does_not_light_with_match:
-        - "No gas flow → check the tank."
-        - "Regulator isn't connected securely → tighten to the gas tank."
-        - "Gas flow is obstructed → check all hoses for kinks and bends."
-        - "Burner holes are clogged → turn all gas flow connections off, insert an opened paper clip into each burner port to clear them."
+      - No gas flow → check the tank.
+      - Regulator isn't connected securely → tighten to the gas tank.
+      - Gas flow is obstructed → check all hoses for kinks and bends.
+      - Burner holes are clogged → turn all gas flow connections off, insert an opened paper clip into
+        each burner port to clear them.
       excess_black_smoke:
-        - "Flame is obstructed at burner holes → check that burner holes are free of small lava rocks."
-        - "Regulator hose is kinked → straighten hose of all bends."
+      - Flame is obstructed at burner holes → check that burner holes are free of small lava rocks.
+      - Regulator hose is kinked → straighten hose of all bends.
       flame_blows_out_easily:
-        - "High or gusting winds → increase flame to HIGH."
-        - "No gas flow → check that tank isn't empty."
-        - "Excess flow safety valve activated → see sudden-drop-in-gas-flow section."
+      - High or gusting winds → increase flame to HIGH.
+      - No gas flow → check that tank isn't empty.
+      - Excess flow safety valve activated → see sudden-drop-in-gas-flow section.
       sudden_drop_in_gas_flow:
-        cause: "Tank is empty OR excess flow safety valve activated."
+        cause: Tank is empty OR excess flow safety valve activated.
         reset_steps:
-          - "Turn the control knob to OFF."
-          - "Close the tank valve and disconnect the propane tank."
-          - "Turn the control knob to HIGH, wait 1 minute."
-          - "Turn the control knob back to OFF."
-          - "Reconnect the propane tank."
-          - "Light the firepit as usual."
-
+        - Turn the control knob to OFF.
+        - Close the tank valve and disconnect the propane tank.
+        - Turn the control knob to HIGH, wait 1 minute.
+        - Turn the control knob back to OFF.
+        - Reconnect the propane tank.
+        - Light the firepit as usual.
   bbq:
-    type: "Gas BBQ (propane)"
-    operation: "Turn on propane, hold down the ignite button while turning the burners on."
-    tool_location: "Grill tools stored in the kitchen."
-
-  # ──────────────────────────────────────────────────────────────
-  # Safety / Supplies
-  # ──────────────────────────────────────────────────────────────
+    type: Gas BBQ (propane)
+    operation: Turn on propane, hold down the ignite button while turning the burners on.
+    tool_location: Grill tools stored in the kitchen.
   first_aid_kit:
-    location: "Drawer of the primary bathroom."
-
-  # ──────────────────────────────────────────────────────────────
-  # Not yet captured
-  # ──────────────────────────────────────────────────────────────
+    location: Drawer of the primary bathroom.
   pets:
     allowed: false
-    policy: "No pets allowed."
-
-  check_in: {}  # TODO
-  check_out: {}  # TODO
-  house_rules: []  # TODO (quiet hours, etc.)
-  emergency_contacts: {}  # TODO
-
-# ──────────────────────────────────────────────────────────────────
-# Dynamic — populated by scripts/curate_knowledge_base.py
-# ──────────────────────────────────────────────────────────────────
+    policy: No pets allowed.
+  check_in: {}
+  check_out: {}
+  house_rules: []
+  emergency_contacts: {}
 dynamic:
-  faqs: []
-  precedents: []
+  faqs:
+  - topic: early_checkin
+    question: Is an early check-in possible?
+    answer: Early check-in cannot always be accommodated, especially when there is a group checking out
+      the same morning and time is needed to prepare the property. Standard check-in is at 4:00 PM. Any
+      earlier check-in time must be mutually agreed upon in advance.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: luggage_dropoff
+    question: Can we drop off luggage or equipment at the property before check-in time?
+    answer: Unfortunately, luggage or equipment drop-offs before check-in cannot be accommodated, as there
+      is no one available to provide access to the garage prior to check-in.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: checkout_procedure
+    question: What is the check-out procedure?
+    answer: 'Check-out is at 10:00 AM. Please: (1) Place used towels and washcloths on the bathroom floor
+      and bring pool towels in from outside. (2) Leave sheets and comforters on the beds as-is. (3) Dispose
+      of all trash in the outdoor trash cans. (4) Empty the grill of food or trash, ensure it is off,
+      and do not place hot ashes in trash cans. (5) Turn off all lights and ensure the stove is off. (6)
+      Return any rearranged furniture to its original location. (7) Check for personal belongings — forgotten
+      items cannot be returned. (8) Lock all doors including sliding doors before departing.'
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Can the pool be heated, and is there a cost?
+    answer: Yes, pool heating is available. Please request it at least 48 hours in advance and a service
+      charge applies.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: pool_vacuum
+    question: Can we remove or unplug the pool vacuum?
+    answer: Please do not unplug or remove the pool vacuum. It is needed to keep the pool clean during
+      your stay.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: What are the parking arrangements?
+    answer: The driveway accommodates 2 vehicles. No street parking is permitted.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What are the Wi-Fi details?
+    answer: 'Wi-Fi Name: Villa Bougainvillea. Password: welcome5120!!'
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: firepit
+    question: How do I operate the firepit?
+    answer: Propane is stored in the white table. Turn on the gas, push and hold the igniter button, then
+      push and turn the control knob to LOW. Once ignited, control the temperature with the control knob.
+      Turn off both the flame and the propane when done, and allow the pit to fully cool before replacing
+      the cover.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: bbq_grill
+    question: How do I operate the outdoor BBQ grill?
+    answer: Turn on the propane, then hold down the ignite button while turning the burners on. Grill
+      tools are stored in the kitchen.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: outdoor_projector
+    question: How do I set up and use the outdoor movie projector?
+    answer: The projector and accessories are kept in the master closet. Strap the projector to the stand
+      and set up behind the bean bags near the tree. Use the black extension cord for the speakers and
+      the grey cord for the projector. Turn the projector on via remote or button, then focus the lens.
+      Navigate to Bluetooth on the main remote to pair speakers (they must be plugged in). You can screen
+      mirror from your own device or use Roku via HDMI. Use the Roku remote to navigate apps. Return all
+      equipment to the master bedroom closet after each use.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: string_lights
+    question: How do I turn on the outdoor string lights?
+    answer: The switch is located outside to the right of the sliding glass door, under the outlet cover.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: volleyball_net
+    question: How do I remove the volleyball net?
+    answer: To remove the net, push the metal tabs on the poles just below the edge of the net to release
+      the upper portion of the pole. Do not attempt to disconnect the net from the upper part of the pole.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: tv_operation
+    question: How do I operate the TVs?
+    answer: The living room, bunk room, and back bedroom go directly into guest mode using Roku remotes
+      only. The green room and second-to-back bedroom require turning on with the TV remote, switching
+      to HDMI, then using the Roku remote to enter guest mode.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: games_and_floaties
+    question: Where are the outdoor games and pool floaties stored?
+    answer: Games and pool floaties are stored in the deck box outside.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: first_aid
+    question: Where is the first aid kit?
+    answer: The first aid kit is stored in the drawer of the primary bathroom.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: booking_requirements
+    question: What is required to finalize a reservation?
+    answer: A signed rental agreement and a valid government-issued ID from the booking guest are required
+      to finalize the reservation. Guest portal verification must also be completed before check-in instructions
+      are released.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+    last_seen: '2026-04-18'
+  - topic: late_checkout
+    question: Is it possible to do a late check-out?
+    answer: Unfortunately, late check-outs cannot be accommodated as the cleaning team needs ample time
+      to prepare the home for the next guests.
+    source_reservations:
+    - 7b1c359f-1c21-4d4d-a5a6-b7a25041445b
+    last_seen: '2026-04-18'
+  - topic: verification_process
+    question: The verification system isn't letting me enter my personal information — what should I do?
+    answer: Complete the additional verification requirements found in your guest portal. Upon verification,
+      you will receive further communication including check-in instructions.
+    source_reservations:
+    - 7b1c359f-1c21-4d4d-a5a6-b7a25041445b
+    last_seen: '2026-04-18'
+  - topic: booking_confirmation_requirements
+    question: What is needed to finalize a reservation?
+    answer: To finalize a reservation, guests must sign a rental agreement and provide a copy of a valid
+      government-issued ID from the booking guest. Once both are complete, the booking is confirmed and
+      check-in details will be sent closer to the arrival date.
+    source_reservations:
+    - 7b1c359f-1c21-4d4d-a5a6-b7a25041445b
+    last_seen: '2026-04-18'
+  - topic: early_checkin
+    question: Is early check-in available, and is there a fee?
+    answer: Early check-in is available depending on the cleaning schedule and availability. It costs
+      $75 for up to 3 hours early, or $150 for more than 3 hours early. Request in advance so the team
+      can confirm with the cleaning crew.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: checkin_time
+    question: What is the standard check-in time?
+    answer: Standard check-in is any time after 3:00 PM. Earlier check-in must be mutually agreed upon
+      in advance and may incur a fee.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: checkout_time
+    question: What is the check-out time and what are the check-out procedures?
+    answer: 'Check-out is at 10:00 AM. Please: (1) Place used towels and washcloths on the bathroom floor
+      and bring pool towels in from outside. (2) Leave sheets and comforters on the beds. (3) Dispose
+      of all trash in the outdoor trash cans labeled with the property name. (4) Empty the grill of food/trash,
+      ensure it is off, and do not place hot ashes in trash cans. (5) Turn off all lights and ensure the
+      stove is off. (6) Return any rearranged furniture to its original location. (7) Check for personal
+      belongings — forgotten items cannot be returned. (8) Lock all doors including sliding doors before
+      departure.'
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: How many cars can park at the property, and is street parking allowed?
+    answer: The driveway accommodates 2 vehicles. No street parking is permitted. Please also be mindful
+      to leave space for the neighbor's driveway.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Is the pool heated, and is there a cost?
+    answer: Pool heating is available upon request. Please request it at least 48 hours in advance and
+      a service charge applies. Do not unplug or remove the pool vacuum.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: pool_floaties
+    question: Are pool floaties provided?
+    answer: Yes, pool floaties are included and stored in the deck box outside. An air pump is also available
+      if you want to bring your own floaties.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: outdoor_movie_projector
+    question: How does the outdoor movie projector work?
+    answer: 'The projector and accessories are stored in the master closet. Set up: (1) Strap the projector
+      to the stand and place it behind the bean bags. (2) Use the black extension cord for the speakers
+      and the grey cord for the projector. (3) Turn on the projector using the remote or button. (4) Focus
+      the lens for a clear picture. (5) Navigate to Bluetooth on the main remote to pair speakers (must
+      be plugged in). (6) You can screen mirror from your own device or use Roku via HDMI. (7) Use the
+      Roku remote to navigate apps. Return all equipment to the master bedroom closet after each use.
+      No physical DVD or HDMI laptop cable is needed.'
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: kitchen_amenities
+    question: Is there a blender in the kitchen?
+    answer: Yes, there is a blender in the fully stocked kitchen.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What are the Wi-Fi name and password?
+    answer: The Wi-Fi network name and password are provided in the check-in instructions sent prior to
+      arrival.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: firepit
+    question: How do I operate the firepit?
+    answer: Propane is stored in the white table. Turn on the gas, then push and hold the igniter button.
+      While holding it, push and turn the control knob to LOW. Once ignited, adjust temperature with the
+      control knob. When done, turn off both the flame and the propane. Allow the pit to fully cool before
+      replacing the cover.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: bbq_grill
+    question: How do I operate the outdoor BBQ grill?
+    answer: Turn on the propane, then hold down the ignite button while turning the burners on. Grill
+      tools are stored in the kitchen. At check-out, empty the grill of food/trash, ensure it is off,
+      and do not place hot ashes in the trash cans.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: string_lights
+    question: How do I turn on the outdoor string lights?
+    answer: The switch is located outside to the right of the sliding glass door, under the outlet cover.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: tv_setup
+    question: How do I operate the TVs?
+    answer: The living room, bunk room, and back bedroom TVs go directly into guest mode using Roku remotes
+      only. The green room and second-to-back bedroom TVs require turning on with the TV remote, switching
+      to HDMI, then using the Roku remote to enter guest mode.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: volleyball_net
+    question: How do I remove the volleyball net?
+    answer: To remove the net, push the metal tabs on the poles just below the edge of the net. This releases
+      the upper portion of the pole. Do not attempt to disconnect the net from the upper part of the pole.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: first_aid
+    question: Where is the first aid kit located?
+    answer: The first aid kit is stored in the drawer of the primary bathroom.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: fuse_box_location
+    question: Where is the fuse box located?
+    answer: The fuse box is located in the backyard.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: noise_policy
+    question: Are there noise guidelines for outdoor areas?
+    answer: Yes, please be mindful of noise levels outside, as sound can carry to neighboring properties.
+      Guests are asked to keep noise at a reasonable level to remain considerate of neighbors.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: guest_registration
+    question: Is there a registration or verification process required before the stay?
+    answer: Yes, all guests must complete a registration and ID verification process prior to their stay.
+      A link to the guest portal is sent after booking. A valid government-issued ID from the booking
+      guest is required.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+    last_seen: '2026-04-18'
+  - topic: check_out_procedure
+    question: What are the check-out procedures?
+    answer: '1. Place all used towels and washcloths on the bathroom floor and bring pool towels in from
+      outside.
+
+      2. Leave sheets and comforters on the beds — no need to strip them.
+
+      3. Dispose of all trash in the outdoor trash cans labeled with the property name.
+
+      4. For the outdoor grill, empty it of food or trash, ensure it is turned off, and avoid placing
+      hot ashes in trash cans.
+
+      5. Turn off all lights and ensure the stove is off.
+
+      6. Return any rearranged furniture (indoors and outdoors) to its original location.
+
+      7. Double-check for personal belongings — forgotten items cannot be returned.
+
+      8. Lock all doors (including sliding doors) before departure.'
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: check_out_time
+    question: What is the check-out time?
+    answer: Check-out is at 10:00 AM. Please check out on time as delays cause the cleaning crew to wait
+      and forgo other jobs.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: check_in_time
+    question: What is the check-in time?
+    answer: Check-in is any time after 4:00 PM. Earlier check-in must be mutually agreed upon in advance.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: check_in_code_early_arrival
+    question: If we don't arrive until the day after check-in begins, will our door code still work?
+    answer: Yes, the check-in code will remain active from the original check-in time, so you can access
+      the property whenever you arrive, even if that is the following day.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: What are the parking rules?
+    answer: The driveway accommodates 2 vehicles. No street parking is permitted. Please be mindful and
+      leave space for the neighbor to use her driveway as well.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Can the pool be heated, and is there a charge?
+    answer: Yes, the pool can be heated. Please request it at least 48 hours in advance and a service
+      charge applies.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: pool_vacuum
+    question: Can we move or unplug the pool vacuum?
+    answer: Please do not unplug or remove the pool vacuum. It is needed to keep the pool clean for your
+      use.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What are the Wi-Fi network name and password?
+    answer: 'Network name: Villa Bougainvillea. Password: welcome5120!!'
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: tv_setup
+    question: How do I operate the TVs?
+    answer: The living room, bunk room, and back bedroom go directly into guest mode using the Roku remotes
+      only. The green room and second-to-back bedroom require turning on with the TV remote first, then
+      switching to HDMI, and then using the Roku remote to enter guest mode.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: firepit
+    question: How do I use the firepit?
+    answer: Propane is stored in the white table. Turn on the gas, then push and hold the igniter button.
+      While holding it, push and turn the control knob to LOW. Once ignited, control the temperature with
+      the control knob. Turn off both the flame and propane when done, and allow the pit to fully cool
+      before replacing the cover.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: bbq
+    question: How do I operate the gas BBQ?
+    answer: Turn on the propane, hold down the ignite button while turning the burners on. Grill tools
+      are stored in the kitchen.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: string_lights
+    question: How do I turn on the outdoor string lights?
+    answer: The switch is located outside to the right of the sliding glass door, under the outlet cover.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: outdoor_movie_projector
+    question: How do I set up and use the outdoor movie projector?
+    answer: 'The projector and accessories are stored in the master closet. To set up: strap the projector
+      to the stand and place it behind the bean bags (near the tree is best). Use the black extension
+      cord for the speakers and the grey cord for the projector. Turn the projector on using the remote
+      or the button on the projector. Focus the lens for a crisp picture. Navigate to Bluetooth on the
+      main remote to pair the speakers (they must be plugged in). You can screen mirror from your own
+      device or use Roku — navigate to HDMI on the main remote to access Roku, then use the Roku remote
+      to navigate to apps. Return the projector, stand, and all accessories to the master bedroom closet
+      after each use.'
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: volleyball_net
+    question: How do I remove the volleyball net?
+    answer: The net is secured to the entire top portion of the poles. To remove it, push the metal tabs
+      on the poles just below the edge of the net — this releases the upper portion of the pole. Do not
+      attempt to disconnect the net from the upper part of the pole.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: games_and_floaties
+    question: Where are the outdoor games and pool floaties stored?
+    answer: Games and pool floaties are stored in the deck box outside.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: first_aid_kit
+    question: Where is the first aid kit?
+    answer: The first aid kit is stored in the drawer of the primary bathroom.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: booking_verification
+    question: What is required to finalize a reservation?
+    answer: Guests must sign a rental agreement via the guest portal and provide a copy of a valid government-issued
+      ID from the booking guest. Once both are complete, the booking is confirmed.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+    last_seen: '2026-04-18'
+  - topic: max_guest_capacity
+    question: Can we bring more guests than the listed capacity?
+    answer: The property can only accommodate a maximum of 16 guests due to safety regulations and house
+      rules. Exceeding this number is not permitted.
+    source_reservations:
+    - 5e992bad-884a-47c0-abcb-2dbb766b4272
+    last_seen: '2026-04-18'
+  - topic: luggage_dropoff
+    question: Can we drop off our luggage at the property before check-in?
+    answer: Unfortunately we aren't able to allow luggage drop-offs before check-in because our cleaning
+      team will still be preparing the house. Services like Bounce offer luggage storage near the airport
+      and around town. If the house becomes ready earlier than expected, we'll let you know.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+    last_seen: '2026-04-18'
+  - topic: early_checkin
+    question: Is an early check-in possible?
+    answer: Early check-in depends on the cleaning team's schedule and cannot be confirmed until about
+      a week before your arrival date. We'll check in with you closer to your stay to let you know if
+      it can be accommodated.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+    last_seen: '2026-04-18'
+  - topic: late_checkout
+    question: Can we check out later than the standard checkout time?
+    answer: We can offer a late checkout until noon at the latest.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+    last_seen: '2026-04-18'
+  - topic: external_vendors_fitness
+    question: Can we have a yoga or pilates instructor come to the property?
+    answer: Yes, outside fitness instructors such as Fit Bach are welcome. There are yoga mats already
+      on-site, but requesting additional mats from the vendor directly is advised.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+    last_seen: '2026-04-18'
+  - topic: communication_channels
+    question: Can a third party (e.g., a family member) contact the host via email or off-platform?
+    answer: Unfortunately, all communication must stay on the booking platform (e.g., Airbnb) as taking
+      conversations off-platform puts the listing at risk. Please have anyone with questions reach out
+      through the platform.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+    last_seen: '2026-04-18'
+  - topic: booking_verification
+    question: What steps are required to finalize a reservation?
+    answer: Guests must sign the rental agreement and complete ID verification through the guest portal.
+      Once both are complete, check-in instructions and additional details will be provided closer to
+      the arrival date.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+    last_seen: '2026-04-18'
+  - topic: check_in_time
+    question: What time is check-in?
+    answer: Check-in is any time after 4:00 PM. Earlier check-in must be mutually agreed upon in advance.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: early_check_in
+    question: Is early check-in available?
+    answer: 'Early check-in can usually be accommodated for a fee: $75 for up to two hours early, or $150
+      for up to four hours early, subject to cleaning team availability.'
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: check_out_time
+    question: What time is check-out?
+    answer: Check-out is at 10:00 AM. Please check out on time as delays affect the cleaning crew's schedule.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: check_out_instructions
+    question: What are the check-out procedures?
+    answer: 1. Place all used towels and washcloths on the bathroom floor and bring pool towels in from
+      outside. 2. Leave sheets and comforters on the beds — no need to strip them. 3. Dispose of all trash
+      in the outdoor trash cans. 4. For the outdoor grill, empty it of food or trash, ensure it is off,
+      and do not place hot ashes in trash cans. 5. Turn off all lights and ensure the stove is off. 6.
+      Return any rearranged furniture to its original location. 7. Double-check for personal belongings
+      — forgotten items cannot be returned. 8. Lock all doors including sliding doors. 9. Start the dishwasher
+      if there are dirty dishes.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: coffee_maker
+    question: Is there a Keurig or pod coffee maker?
+    answer: Yes, there is a machine that takes Keurig and other pods, as well as a regular coffee maker,
+      both located at the coffee bar.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What is the WiFi name and password?
+    answer: 'WiFi Name: Villa Bougainvillea. Password: welcome5120!!'
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: How many cars can park at the property?
+    answer: The driveway accommodates 2 vehicles. No street parking is permitted.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Can the pool be heated, and is there a fee?
+    answer: Yes, the pool can be heated. Please request it at least 48 hours in advance and a service
+      charge applies. Do not unplug or remove the pool vacuum.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: pool_equipment
+    question: Where are pool floaties and games stored?
+    answer: Games and pool floaties are stored in the deck box outside.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: firepit
+    question: How do you operate the firepit?
+    answer: Propane is stored in the white table. Turn on the gas, push and hold the igniter button, then
+      push and turn the control knob to LOW while holding the button. Once ignited, control the temperature
+      with the knob. Turn off both the flame and propane when done and allow the pit to fully cool before
+      replacing the cover.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: bbq_grill
+    question: How do you operate the BBQ grill?
+    answer: Turn on the propane, then hold down the ignite button while turning the burners on. Grill
+      tools are stored in the kitchen.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: outdoor_projector
+    question: How do you set up and use the outdoor movie projector?
+    answer: 1. Strap the projector to the stand and set up behind the bean bags (near the tree is best).
+      2. Use the black extension cord for the speakers and the grey cord for the projector. 3. Turn the
+      projector on using the remote or button. 4. Focus the lens for a crisp picture. 5. Use the main
+      remote to navigate to Bluetooth to pair the speakers (must be plugged in). 6. You can screen mirror
+      from your own device or use Roku via HDMI. 7. Use the Roku remote to navigate apps. 8. Return all
+      equipment to the master bedroom closet after each use.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: string_lights
+    question: How do you turn on the outdoor string lights?
+    answer: The switch is located outside to the right of the sliding glass door, under the outlet cover.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: volleyball_net
+    question: How do you remove the volleyball net?
+    answer: To remove the net, push the metal tabs on the poles just below the edge of the net. This releases
+      the upper portion of the pole. Do not attempt to disconnect the net from the upper part of the pole.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: tv_setup
+    question: How do the TVs work?
+    answer: The living room, bunk room, and back bedroom go directly into guest mode using Roku remotes
+      only. The green room and second-to-back bedroom require turning on with the TV remote first, then
+      switching to HDMI, then using the Roku remote to enter guest mode.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: trash_service
+    question: When is trash collected?
+    answer: Trash bins are placed out for collection on Mondays and Fridays. Do not place plastic bags
+      in the recycling bin.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: landscaping_and_pool_service
+    question: When do landscapers and pool technicians visit?
+    answer: Landscaping occurs every Tuesday and pool servicing occurs every Thursday. Both will access
+      the property via the side gate and will not enter the house.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: first_aid
+    question: Where is the first aid kit?
+    answer: The first aid kit is stored in the drawer of the primary bathroom.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: decorating_policy
+    question: Are guests allowed to decorate the property?
+    answer: Yes, decorating is welcome. However, no tape or tacks may be used on the walls. Free-standing
+      decorations are perfectly fine.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: booking_verification
+    question: What is required to finalize a reservation?
+    answer: Guests must sign a rental agreement via the guest portal and provide a copy of a valid government-issued
+      ID from the booking guest. Check-in details are sent once verification is complete.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+    last_seen: '2026-04-18'
+  - topic: check_in_time
+    question: What time is check-in?
+    answer: Check-in is any time after 4:00 PM. Earlier check-in must be mutually agreed upon in advance.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: check_out_time
+    question: What time is check-out?
+    answer: Check-out is at 10:00 AM. Please check out on time as delays cause the cleaning crew to wait
+      and forgo other jobs.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: check_out_procedure
+    question: What do I need to do before checking out?
+    answer: 1. Place all used towels and washcloths on the bathroom floor and bring pool towels in from
+      outside. 2. Leave sheets and comforters on the beds as they are. 3. Dispose of all trash in the
+      outdoor trash cans. 4. Empty the outdoor grill of food or trash, ensure it is turned off, and avoid
+      placing hot ashes in trash cans. 5. Turn off all lights and ensure the stove is off. 6. Return any
+      rearranged furniture (indoors and outdoors) to its original location. 7. Double-check for personal
+      belongings — forgotten items cannot be returned. 8. Lock all doors including sliding doors before
+      departure.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Can the pool be heated, and is there an extra cost?
+    answer: Yes, the pool can be heated. Please request it at least 48 hours in advance. There is a service
+      charge of $250. The pool is typically set to around 85°F for a comfortable swim.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What is the WiFi name and password?
+    answer: 'WiFi Name: Villa Bougainvillea. Password: welcome5120!!'
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: How many vehicles can park at the property?
+    answer: The driveway accommodates 2 vehicles. No street parking is permitted.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: trash_service
+    question: When is trash collected?
+    answer: Trash bins are placed out for collection on Mondays and Fridays. Please do not place plastic
+      bags in the recycling bin.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: landscaping_and_pool_service
+    question: When do landscapers and pool technicians visit?
+    answer: Landscaping occurs every Tuesday and pool servicing occurs every Thursday. They access the
+      property via the side gate and will not enter the house.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: pool_vacuum
+    question: Can I remove the pool vacuum?
+    answer: Please do not unplug or remove the pool vacuum. It is needed to keep the pool clean for your
+      use.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: firepit
+    question: How do I operate the firepit?
+    answer: Propane is stored in the white table. Turn on the gas, push and hold the igniter button, and
+      while holding it, push and turn the control knob to LOW. Once ignited, adjust temperature with the
+      control knob. Turn off both the flame and propane when done. Allow the pit to fully cool before
+      replacing the cover.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: bbq_grill
+    question: How do I operate the BBQ grill?
+    answer: Turn on the propane, then hold down the ignite button while turning the burners on. Grill
+      tools are stored in the kitchen.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: outdoor_projector
+    question: How do I set up and use the outdoor movie projector?
+    answer: Strap the projector to the stand and set up behind the bean bags (near the tree works best).
+      Use the black extension cord for the speakers and the grey cord for the projector. Turn the projector
+      on using the remote or button on the projector. Focus the lens for a crisp picture. Use the main
+      remote to navigate to Bluetooth to pair the speakers (must be plugged in). You can screen mirror
+      from your own device or use Roku via HDMI. Use the Roku remote to navigate apps. Return the projector,
+      stand, and all accessories to the master bedroom closet after each use.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: string_lights
+    question: How do I turn on the outdoor string lights?
+    answer: The switch is located outside to the right of the sliding glass door, under the outlet cover.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: tv_setup
+    question: How do I operate the TVs?
+    answer: The living room, bunk room, and back bedroom go directly into guest mode using Roku remotes
+      only. The green room and second-to-back bedroom require turning on with the TV remote, going to
+      HDMI, then switching to the Roku remote to enter guest mode.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: volleyball_net
+    question: How do I remove the volleyball net?
+    answer: To remove the net, push the metal tabs on the poles just below the edge of the net. This releases
+      the upper portion of the pole. Do not attempt to disconnect the net from the upper part of the pole.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: games_and_floaties
+    question: Where are outdoor games and pool floaties stored?
+    answer: Games and pool floaties are stored in the deck box outside.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: first_aid_kit
+    question: Where is the first aid kit located?
+    answer: The first aid kit is stored in the drawer of the primary bathroom.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: guest_registration
+    question: Is there a registration process required before my stay?
+    answer: Yes, all guests must complete the registration process and sign the rental agreement before
+      their stay. A valid government-issued ID from the booking guest is also required. These are handled
+      securely.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: fridge_stocking
+    question: Is fridge stocking or vendor coordination available?
+    answer: Yes, fridge stocking services and vendor coordination are available through a HostCo store
+      link provided at booking.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Is pool heating available, and what does it cost?
+    answer: Yes, pool heating is available for an additional fee of $250 for the stay. Request it at least
+      48 hours before arrival so it is ready upon check-in. The charge is sent through the Airbnb resolution
+      center.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: How far in advance do I need to request pool heating?
+    answer: Please request pool heating at least 48 hours before your arrival so we have time to turn
+      it on and have the water warm when you arrive.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: games_and_equipment
+    question: Are there outdoor games, sports equipment, or pool floaties available?
+    answer: Yes, there are golf putters, a volleyball, pool floaties, and other yard games on-site. Games
+      and pool floaties are stored in the deck box outside.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: check_in
+    question: What time is check-in and how do I get in?
+    answer: Check-in is any time after 4:00 PM. Earlier check-in must be arranged in advance. Entry is
+      via a keypad door code provided before arrival.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: check_out
+    question: What time is check-out and what are the check-out procedures?
+    answer: 'Check-out is at 10:00 AM. Please: place used towels and washcloths on the bathroom floor
+      and bring pool towels in from outside; leave sheets and comforters on the beds; dispose of all trash
+      in outdoor trash cans; empty and turn off the grill; turn off all lights and ensure the stove is
+      off; return any rearranged furniture to its original location; double-check for personal belongings;
+      and lock all doors including sliding doors.'
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: How many vehicles can park at the property?
+    answer: The driveway accommodates 2 vehicles. Street parking is not permitted.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What is the Wi-Fi network name and password?
+    answer: 'Wi-Fi Name: Villa Bougainvillea. Password: welcome5120!!'
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: trash_service
+    question: When is trash collected?
+    answer: Trash service collects on Mondays and Fridays. Please do not place plastic bags in the recycling
+      bin.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: landscaping_and_pool_service
+    question: When does landscaping and pool servicing occur, and will workers enter the house?
+    answer: Landscaping occurs every Tuesday and pool servicing every Thursday. Both access the property
+      via the side gate and will not enter the house.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: firepit
+    question: How do I operate the firepit?
+    answer: Propane is stored in the white table. Turn on the gas, push and hold the igniter button, then
+      push and turn the control knob to LOW while still holding the button. Once ignited, adjust temperature
+      with the control knob. When done, turn off both the flame and the propane, and allow the pit to
+      fully cool before replacing the cover.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: bbq_grill
+    question: How do I operate the BBQ grill?
+    answer: Turn on the propane, then hold down the ignite button while turning the burners on. Grill
+      tools are stored in the kitchen. After use, empty the grill of food or trash, ensure it is turned
+      off, and do not place hot ashes in the trash cans.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: outdoor_projector
+    question: How do I set up and use the outdoor movie projector?
+    answer: 'The projector and accessories are stored in the master bedroom closet. To set up: strap the
+      projector to the stand and place it behind the bean bags (near the tree works best); use the black
+      extension cord for the speakers and the grey cord for the projector; turn the projector on with
+      the remote or the button on the unit; focus the lens for a clear picture; navigate to Bluetooth
+      on the main remote to pair the speakers (they must be plugged in); choose to screen mirror from
+      your own device or use Roku via HDMI; use the Roku remote to navigate apps. Return all equipment
+      to the master bedroom closet after each use.'
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: string_lights
+    question: How do I turn on the outdoor string lights?
+    answer: The switch is located outside to the right of the sliding glass door, under the outlet cover.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: volleyball_net
+    question: Can I remove the volleyball net, and how?
+    answer: Yes. To remove the net, push the metal tabs on the poles just below the edge of the net to
+      release the upper portion of the pole. Do not attempt to disconnect the net from the upper part
+      of the pole.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: tv_setup
+    question: How do I operate the TVs in the house?
+    answer: The living room, bunk room, and back bedroom go directly into guest mode using the Roku remotes
+      only. The green room and second-to-back bedroom require turning on with the TV remote first, then
+      switching to HDMI, and then using the Roku remote to enter guest mode.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: pool_vacuum
+    question: Can I remove or unplug the pool vacuum?
+    answer: Please do not unplug or remove the pool vacuum. It is needed to keep the pool clean during
+      your stay.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: first_aid
+    question: Is there a first aid kit on the property?
+    answer: Yes, a first aid kit is stored in the drawer of the primary bathroom.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  - topic: fridge_stocking
+    question: Can I arrange fridge stocking or other services before arrival?
+    answer: Yes, fridge stocking and vendor coordination services are available through the host's HostCo
+      store link provided at booking.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+    last_seen: '2026-04-18'
+  precedents:
+  - situation: Minor drip from bathroom fan near washer and dryer discovered during guest stay
+    what_we_did: Host proactively notified the guest and arranged for a technician to come by the following
+      day to inspect and address the issue.
+    source_reservations:
+    - a0497b8c-c546-4cea-afea-757a03d4cdf6
+  - situation: Guest had trouble completing identity verification through the guest portal
+    what_we_did: Directed guest to the guest portal link to complete verification. Guest was able to figure
+      it out on their own and resolved the issue without further intervention.
+    source_reservations:
+    - 7b1c359f-1c21-4d4d-a5a6-b7a25041445b
+  - situation: Guest booked with the wrong credit card and wanted to cancel and rebook using a different
+      card
+    what_we_did: Host confirmed the rate would remain the same as long as the guest cancelled and rebooked
+      immediately. Guest successfully rebooked and was asked to complete ID verification and rental agreement
+      again as a formality.
+    source_reservations:
+    - bb49483a-91ce-4e17-879d-7e312748f3b4
+  - situation: After cancelling and rebooking, the property showed as unavailable on Airbnb
+    what_we_did: Host advised the guest to wait a couple of minutes for Airbnb availability to update,
+      then try rebooking again. The nights became available shortly after and the guest was able to rebook
+      successfully.
+    source_reservations:
+    - bb49483a-91ce-4e17-879d-7e312748f3b4
+  - situation: Guests experienced a partial power outage affecting the master bedroom and some outdoor
+      areas due to a tripped breaker.
+    what_we_did: Guided guests to locate the fuse box in the backyard to reset the tripped breakers. Host
+      also requested a photo of the flipped breakers to review the recently upgraded electrical system
+      for any issues.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+  - situation: Guests requested early check-in after their flights were moved up.
+    what_we_did: Host confirmed availability with the cleaning team and offered early check-in at 1 PM
+      for a fee of $75, processed through the booking platform.
+    source_reservations:
+    - 69c2366f-a9a5-4f68-acdd-151031128b25
+  - situation: Guest's previous booking was cancelled last-minute due to a plumbing emergency at another
+      property, resulting in a last-minute booking at this property.
+    what_we_did: Accommodated the last-minute booking and confirmed the reservation. Ensured the guest
+      was aware of house rules given the short lead time.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+  - situation: Guests planned to arrive the morning after the official check-in day began.
+    what_we_did: Confirmed that the door code would still be active from the original check-in time and
+      that guests could access the property whenever they arrived.
+    source_reservations:
+    - e0c3cdd3-088f-4b02-af0f-2970d7e949cd
+  - situation: Guest was unable to complete registration because the security code was being sent to an
+      old phone number no longer in their possession.
+    what_we_did: Host directed the guest back to the guest portal to complete additional verification
+      requirements, acknowledging the issue and indicating it would be addressed on their end.
+    source_reservations:
+    - ca40a4e4-75ee-4c72-9e93-d88b2a24f4c6
+  - situation: Guest inquired about bringing 18 people to a property listed for 16 guests.
+    what_we_did: Host informed the guest that the maximum occupancy is 16 due to safety regulations and
+      house rules. Guest chose to cancel the reservation rather than reduce the group size.
+    source_reservations:
+    - 5e992bad-884a-47c0-abcb-2dbb766b4272
+  - situation: Guest requested to drop luggage at the property before check-in while cleaners were still
+      on-site.
+    what_we_did: Declined the request, explained that cleaners needed the space, and suggested third-party
+      luggage storage services like Bounce as an alternative.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+  - situation: Guest asked for a late checkout beyond the standard 10am checkout time.
+    what_we_did: Offered a late checkout until noon as an accommodation.
+    source_reservations:
+    - 09e04f0d-512f-43a3-be63-dcf307a1aed4
+  - situation: AC was not blowing cool air on the day guests were arriving.
+    what_we_did: Host proactively identified the issue and dispatched an HVAC technician to the property
+      the same day. Host notified the guest in advance, apologized for the inconvenience, and reassured
+      them it was being addressed before their arrival.
+    source_reservations:
+    - 40cdbcc2-aa8b-4141-bfb8-b8b10f90d1ed
+  - situation: Guest requested pool heating prior to arrival.
+    what_we_did: Confirmed the $250 pool heating charge, set the temperature to approximately 85°F, and
+      turned on the heating in time for the guest's arrival.
+    source_reservations:
+    - b842a9e5-5b5b-4e03-b3bb-5bf3bf062b6e
+  - situation: Guest reported washing machine making a loud grinding noise during stay.
+    what_we_did: Noted the issue and scheduled a repair immediately after the guest's checkout.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+  - situation: Guest reported a slow-draining shower near the laundry room during stay.
+    what_we_did: Noted the issue and scheduled maintenance to address the drain after the guest's checkout.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+  - situation: Guest reported a broken bike pedal hanging off the handlebar in the workout room.
+    what_we_did: Noted the issue for repair after checkout. Guest confirmed they had not used the bike.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10
+  - situation: Guest offered to check out early (by 7:30 AM) due to an early flight.
+    what_we_did: Accepted the early departure and informed the cleaning crew so they could get a head
+      start that morning.
+    source_reservations:
+    - 03fa5606-cf82-4934-89f5-1b71ad989a10

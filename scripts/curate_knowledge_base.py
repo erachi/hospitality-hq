@@ -23,7 +23,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 # Make src/ importable
@@ -89,7 +89,12 @@ Deduplicate and merge them into a clean canonical list. Rules:
 
 
 def fetch_all_reservations(hospitable: HospitableClient, property_uuid: str) -> list[dict]:
-    """Fetch all reservations (no date/status filter) for a property."""
+    """Fetch all reservations across full history for a property.
+
+    Hospitable's list-reservations endpoint returns only upcoming/recent
+    reservations unless an explicit date range is provided. To get the
+    full history we pass a very wide date range with date_query=checkin.
+    """
     logger.info(f"Fetching all reservations for {property_uuid}")
     all_reservations = []
     page = 1
@@ -98,6 +103,12 @@ def fetch_all_reservations(hospitable: HospitableClient, property_uuid: str) -> 
             "/reservations",
             params={
                 "properties[]": property_uuid,
+                # Hospitable caps end_date at ~3 years from today. Use a
+                # wide but compliant window that captures all history through
+                # the near future.
+                "start_date": "2018-01-01",
+                "end_date": (datetime.utcnow().date() + timedelta(days=365 * 2)).isoformat(),
+                "date_query": "checkin",
                 "include": "guest",
                 "per_page": 50,
                 "page": page,
@@ -105,8 +116,8 @@ def fetch_all_reservations(hospitable: HospitableClient, property_uuid: str) -> 
         )
         reservations = data.get("data", [])
         all_reservations.extend(reservations)
-        meta = data.get("meta", {})
-        if meta.get("current_page", 1) >= meta.get("last_page", 1):
+        # Stop when the page returns fewer than per_page (last page) or is empty
+        if len(reservations) < 50:
             break
         page += 1
     logger.info(f"Fetched {len(all_reservations)} total reservations")

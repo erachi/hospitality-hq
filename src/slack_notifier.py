@@ -58,26 +58,31 @@ def _truncate(text: str, limit: int = _MAX_TEXT_LEN) -> str:
 
 
 def _format_message_history(recent_messages: list[dict], trigger_message: str) -> str:
-    """Format last 3-5 messages for Block Kit display.
+    """Format prior conversation messages for Block Kit display.
 
-    The triggering guest message is bolded so the host can spot it instantly.
+    Excludes the triggering message (shown separately in its own block) and
+    sorts chronologically so the conversation reads top-to-bottom.
     """
     if not recent_messages:
         return "_No prior messages_"
 
     trigger = (trigger_message or "").strip()
+
+    # Sort chronologically (oldest first) so the thread reads naturally
+    sorted_msgs = sorted(recent_messages, key=lambda m: m.get("created_at", ""))
+
     lines = []
-    for msg in recent_messages:
+    for msg in sorted_msgs:
         sender = msg.get("sender_type", msg.get("sender", ""))
         body = (msg.get("body") or "").strip()
         if not body:
             continue
+        # Skip the triggering message — it gets its own prominent section
+        if body == trigger and sender == "guest":
+            continue
         timestamp = msg.get("created_at", "")
         label = "GUEST" if sender == "guest" else "HOST"
-        if body == trigger and sender == "guest":
-            lines.append(f"*[{label}]* *{body}*  _({timestamp})_")
-        else:
-            lines.append(f"*[{label}]* {body}  _({timestamp})_")
+        lines.append(f"*[{label}]* {body}  _({timestamp})_")
 
     if not lines:
         return "_No prior messages_"
@@ -163,9 +168,20 @@ def _build_blocks(
             ],
         },
         {"type": "divider"},
+        # ---- New guest message (the trigger) shown prominently ----
         {
             "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "*RECENT MESSAGES*"}],
+            "elements": [{"type": "mrkdwn", "text": "*💬 NEW MESSAGE*"}],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": _truncate(f"> {guest_message}")},
+        },
+        {"type": "divider"},
+        # ---- Prior conversation for context ----
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": "*CONVERSATION HISTORY*"}],
         },
         {
             "type": "section",

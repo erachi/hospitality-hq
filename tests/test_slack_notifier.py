@@ -195,14 +195,17 @@ def test_post_guest_alert_with_message_history(mock_token):
     payload = _request_payload(responses.calls[0])
     text = _blocks_text(payload)
 
-    # Each historical message should appear with its GUEST/HOST label.
+    # The triggering message should appear in its own "NEW MESSAGE" section.
+    assert "NEW MESSAGE" in text
+    assert trigger in text
+    # Prior messages should appear with GUEST/HOST labels in the history.
     assert "[GUEST]" in text
     assert "[HOST]" in text
     assert "Hi, checking in at 4?" in text
     assert "Yes, 4pm works!" in text
-    assert trigger in text
-    # The triggering guest message should be bolded (surrounded by `*`).
-    assert f"*{trigger}*" in text
+    # The trigger should NOT be duplicated in the conversation history.
+    # It appears once in NEW MESSAGE, and the history excludes it.
+    assert text.count(trigger) == 1
     # Repeat guest badge should flip.
     assert "(Repeat)" in text
     assert "(New)" not in text
