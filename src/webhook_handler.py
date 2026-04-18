@@ -110,6 +110,12 @@ def process_webhook_message(
     property_name = reservation.get("property_name", "Unknown Property")
     checkin = reservation.get("checkin", "")
     checkout = reservation.get("checkout", "")
+    booking_source = (
+        reservation.get("source", "")
+        or reservation.get("platform", "")
+        or data.get("platform", "")
+    )
+    reservation_status = reservation.get("status", "")
 
     # Load property context
     prop_context = load_property_context(hospitable, property_id)
@@ -145,6 +151,9 @@ def process_webhook_message(
         conversation_history=conversation_history,
     )
 
+    # Last 5 messages as context in the alert
+    recent_messages = messages[-5:] if messages else []
+
     # Post to Slack
     slack_result = post_guest_alert(
         guest_name=guest_name,
@@ -155,6 +164,10 @@ def process_webhook_message(
         classification=classification,
         draft_response=draft,
         reservation_uuid=reservation_id,
+        booking_source=booking_source,
+        reservation_status=reservation_status,
+        is_repeat_guest=False,  # TODO: implement repeat guest detection
+        recent_messages=recent_messages,
     )
 
     if slack_result.get("ok"):
