@@ -94,9 +94,15 @@ class HospitableClient:
         return data.get("data", {})
 
     def get_reservation_detail(self, reservation_uuid: str) -> dict:
-        """Fetch full reservation details including financials."""
+        """Fetch full reservation details including financials and property info.
+
+        `include=properties` nests a `properties` array on the response with
+        `id` and `name` — the detail endpoint does NOT return `property_id` or
+        `property_name` at the top level, so we rely on this include to
+        identify which property the reservation belongs to.
+        """
         data = self._get(
             f"/reservations/{reservation_uuid}",
-            params={"include": "guest,financials"},
+            params={"include": "guest,financials,properties"},
         )
         return data.get("data", {})

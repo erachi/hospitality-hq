@@ -22,7 +22,8 @@ from hospitable_client import HospitableClient
 from state_tracker import StateTracker
 from classifier import classify_message, draft_response
 from slack_notifier import post_guest_alert
-from handler import load_property_context, build_conversation_summary
+from handler import load_property_context, build_conversation_summary, _date_only
+from knowledge_base_loader import get_property_name
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -106,13 +107,27 @@ def process_webhook_message(
     reservation = hospitable.get_reservation_detail(reservation_id)
     guest = reservation.get("guest", {})
     guest_name = guest.get("full_name", guest.get("first_name", "Guest"))
-    property_id = reservation.get("property_id", "")
-    property_name = reservation.get("property_name", "Unknown Property")
-    checkin = reservation.get("checkin", "")
-    checkout = reservation.get("checkout", "")
+
+    # Hospitable's /reservations/{id} response doesn't carry property_id or
+    # property_name at the top level. With `include=properties` we get a
+    # `properties` array — take the first entry. Then prefer our local KB's
+    # canonical name (same logic the polling handler uses) so the Slack alert
+    # shows "Villa Bougainvillea" rather than an Airbnb public name.
+    properties = reservation.get("properties") or []
+    first_property = properties[0] if properties else {}
+    property_id = first_property.get("id", "")
+    property_name = (
+        get_property_name(property_id)
+        or first_property.get("name")
+        or "Unknown Property"
+    )
+
+    # Dates live under check_in/check_out as ISO-8601 timestamps.
+    checkin = _date_only(reservation.get("check_in") or reservation.get("arrival_date", ""))
+    checkout = _date_only(reservation.get("check_out") or reservation.get("departure_date", ""))
     booking_source = (
-        reservation.get("source", "")
-        or reservation.get("platform", "")
+        reservation.get("platform", "")
+        or reservation.get("source", "")
         or data.get("platform", "")
     )
     reservation_status = reservation.get("status", "")

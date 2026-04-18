@@ -22,6 +22,13 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
+def _date_only(value: str) -> str:
+    """Truncate an ISO-8601 timestamp to its YYYY-MM-DD portion."""
+    if not value:
+        return ""
+    return value.split("T", 1)[0]
+
+
 def lambda_handler(event, context):
     """Main entry point for the Lambda function."""
     logger.info("Hospitality HQ monitor starting")
@@ -99,12 +106,15 @@ def process_reservation(
     guest = reservation.get("guest", {})
     guest_name = guest.get("full_name", guest.get("first_name", "Guest"))
 
-    # Extract dates
-    checkin = reservation.get("checkin", "")
-    checkout = reservation.get("checkout", "")
+    # Extract dates. Hospitable returns ISO-8601 timestamps under `check_in` /
+    # `check_out` (and arrival_date/departure_date as a backup). Strip the time
+    # portion for display.
+    checkin = _date_only(reservation.get("check_in") or reservation.get("arrival_date", ""))
+    checkout = _date_only(reservation.get("check_out") or reservation.get("departure_date", ""))
 
-    # Booking source + status for the alert header
-    booking_source = reservation.get("source", "") or reservation.get("platform", "")
+    # Booking source + status for the alert header. Hospitable uses `platform`
+    # (e.g. "airbnb") rather than `source`.
+    booking_source = reservation.get("platform", "") or reservation.get("source", "")
     reservation_status = reservation.get("status", "")
 
     # Fetch messages for this reservation

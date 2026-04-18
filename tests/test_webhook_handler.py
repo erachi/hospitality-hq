@@ -69,11 +69,14 @@ def test_webhook_processes_guest_message(
 
     mock_client.get_reservation_detail.return_value = {
         "id": "res-uuid-123",
-        "property_id": "prop-1",
-        "property_name": "Villa Bougainvillea",
-        "checkin": "2026-04-20",
-        "checkout": "2026-04-25",
+        "platform": "airbnb",
+        "status": "accepted",
+        "check_in": "2026-04-20T16:00:00-07:00",
+        "check_out": "2026-04-25T11:00:00-07:00",
         "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        "properties": [
+            {"id": "prop-1", "name": "Villa Bougainvillea"},
+        ],
     }
     mock_client.get_reservation_messages.return_value = [
         {"sender_type": "guest", "body": "The AC isn't working", "id": "msg-1"}
@@ -100,6 +103,17 @@ def test_webhook_processes_guest_message(
     mock_draft.assert_called_once()
     mock_slack.assert_called_once()
 
+    # Regression guard: the webhook path was posting "Unknown Property" with
+    # blank dates because the code read `property_name`/`checkin`/`checkout`
+    # from the reservation detail, but Hospitable returns properties under a
+    # nested `properties[]` array and dates under `check_in`/`check_out`.
+    slack_kwargs = mock_slack.call_args.kwargs
+    assert slack_kwargs["property_name"] == "Villa Bougainvillea"
+    assert slack_kwargs["checkin_date"] == "2026-04-20"
+    assert slack_kwargs["checkout_date"] == "2026-04-25"
+    assert slack_kwargs["booking_source"] == "airbnb"
+    assert slack_kwargs["reservation_status"] == "accepted"
+
 
 @mock_aws
 @patch("webhook_handler.get_webhook_secret", return_value="")
@@ -117,11 +131,14 @@ def test_webhook_accepts_without_secret(
 
     mock_client.get_reservation_detail.return_value = {
         "id": "res-uuid-123",
-        "property_id": "prop-1",
-        "property_name": "Villa Bougainvillea",
-        "checkin": "2026-04-20",
-        "checkout": "2026-04-25",
+        "platform": "airbnb",
+        "status": "accepted",
+        "check_in": "2026-04-20T16:00:00-07:00",
+        "check_out": "2026-04-25T11:00:00-07:00",
         "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        "properties": [
+            {"id": "prop-1", "name": "Villa Bougainvillea"},
+        ],
     }
     mock_client.get_reservation_messages.return_value = []
     mock_client.get_property.return_value = {"description": "desc"}
@@ -218,11 +235,14 @@ def test_webhook_deduplicates(
 
     mock_client.get_reservation_detail.return_value = {
         "id": "res-uuid-123",
-        "property_id": "prop-1",
-        "property_name": "Villa Bougainvillea",
-        "checkin": "2026-04-20",
-        "checkout": "2026-04-25",
+        "platform": "airbnb",
+        "status": "accepted",
+        "check_in": "2026-04-20T16:00:00-07:00",
+        "check_out": "2026-04-25T11:00:00-07:00",
         "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        "properties": [
+            {"id": "prop-1", "name": "Villa Bougainvillea"},
+        ],
     }
     mock_client.get_reservation_messages.return_value = []
     mock_client.get_property.return_value = {"description": "desc"}
