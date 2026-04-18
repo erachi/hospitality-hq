@@ -18,6 +18,12 @@ Parameters:
     Type: String
     Default: "/hospitality-hq"
     Description: SSM Parameter Store path prefix for secrets
+  AlarmEmail:
+    Type: String
+    Description: Email address to receive CloudWatch alarm notifications
+  OpsSlackChannelId:
+    Type: String
+    Description: Slack channel ID for ops alerts (e.g. #hospitality-hq-ops)
 
 Globals:
   Function:
@@ -26,7 +32,9 @@ Globals:
     MemorySize: 256
 
 Resources:
-  # --- Real-time webhook processing (Phase 2) ---
+  # ═══════════════════════════════════════════════════════════════
+  # Core application — webhook + monitor
+  # ═══════════════════════════════════════════════════════════════
 
   WebhookApi:
     Type: AWS::Serverless::HttpApi
@@ -60,8 +68,6 @@ Resources:
             Path: /webhook
             Method: POST
 
-  # --- Hourly safety-net polling (reduced from 15 min) ---
-
   MonitorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -88,8 +94,6 @@ Resources:
             Description: Hourly safety-net check for missed webhook events
             Enabled: true
 
-  # --- Shared resources ---
-
   MessagesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -109,6 +113,339 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
+  # ═══════════════════════════════════════════════════════════════
+  # Observability: SNS topic → Email + Slack alarm handler
+  # ═══════════════════════════════════════════════════════════════
+
+  AlarmsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: hospitality-hq-alarms
+      DisplayName: Hospitality HQ Alarms
+
+  AlarmsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmsTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  AlarmHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-alarm-handler
+      Handler: alarm_handler.alarm_handler
+      CodeUri: src/
+      Timeout: 30
+      Description: Forwards CloudWatch alarms to the ops Slack channel
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          OPS_SLACK_CHANNEL_ID: !Ref OpsSlackChannelId
+      Policies:
+        - SSMParameterReadPolicy:
+            ParameterName: !Sub "${SSMPrefix}/*"
+      Events:
+        AlarmsSNS:
+          Type: SNS
+          Properties:
+            Topic: !Ref AlarmsTopic
+
+  # ═══════════════════════════════════════════════════════════════
+  # Log metric filters — derive custom metrics from existing log lines
+  # Namespace: HospitalityHQ
+  # ═══════════════════════════════════════════════════════════════
+
+  SlackPostsSucceededFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: MonitorFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
+      FilterPattern: '"Posted Slack alert for message"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: SlackPostsSucceeded
+          MetricValue: "1"
+          DefaultValue: 0
+
+  SlackPostsSucceededWebhookFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: WebhookFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${WebhookFunction}"
+      FilterPattern: '"Posted Slack alert for webhook"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: SlackPostsSucceeded
+          MetricValue: "1"
+          DefaultValue: 0
+
+  ReservationProcessingErrorsFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: MonitorFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
+      FilterPattern: '"Error processing reservation"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: ReservationProcessingErrors
+          MetricValue: "1"
+          DefaultValue: 0
+
+  HighUrgencyMessagesFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: MonitorFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
+      FilterPattern: '"/ HIGH"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: HighUrgencyMessages
+          MetricValue: "1"
+          DefaultValue: 0
+
+  HospitableAuthErrorsMonitorFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: MonitorFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
+      FilterPattern: '"401 Client Error"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: HospitableAuthErrors
+          MetricValue: "1"
+          DefaultValue: 0
+
+  HospitableAuthErrorsWebhookFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: WebhookFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${WebhookFunction}"
+      FilterPattern: '"401 Client Error"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: HospitableAuthErrors
+          MetricValue: "1"
+          DefaultValue: 0
+
+  WebhookAuthFailuresFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn: WebhookFunction
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${WebhookFunction}"
+      FilterPattern: '"Invalid webhook signature"'
+      MetricTransformations:
+        - MetricNamespace: HospitalityHQ
+          MetricName: WebhookAuthFailures
+          MetricValue: "1"
+          DefaultValue: 0
+
+  # ═══════════════════════════════════════════════════════════════
+  # CloudWatch alarms
+  # ═══════════════════════════════════════════════════════════════
+
+  NoSlackPostsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: hospitality-hq-no-slack-posts-24h
+      AlarmDescription: "No Slack alerts posted in 24h — system may be silently broken"
+      MetricName: SlackPostsSucceeded
+      Namespace: HospitalityHQ
+      Statistic: Sum
+      Period: 86400  # 24 hours
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmsTopic
+      OKActions:
+        - !Ref AlarmsTopic
+
+  HospitableAuthErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: hospitality-hq-hospitable-auth-errors
+      AlarmDescription: "Hospitable API returning 401 — rotate the API token"
+      MetricName: HospitableAuthErrors
+      Namespace: HospitalityHQ
+      Statistic: Sum
+      Period: 300  # 5 min
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmsTopic
+      OKActions:
+        - !Ref AlarmsTopic
+
+  LambdaErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: hospitality-hq-lambda-errors
+      AlarmDescription: "Sustained Lambda errors in monitor or webhook function"
+      EvaluationPeriods: 3
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Metrics:
+        - Id: monitor_errors
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Errors
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref MonitorFunction
+            Period: 300
+            Stat: Sum
+          ReturnData: false
+        - Id: webhook_errors
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Errors
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref WebhookFunction
+            Period: 300
+            Stat: Sum
+          ReturnData: false
+        - Id: total_errors
+          Expression: monitor_errors + webhook_errors
+          Label: Total Lambda Errors
+          ReturnData: true
+      AlarmActions:
+        - !Ref AlarmsTopic
+      OKActions:
+        - !Ref AlarmsTopic
+
+  # ═══════════════════════════════════════════════════════════════
+  # CloudWatch dashboard
+  # ═══════════════════════════════════════════════════════════════
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: hospitality-hq
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda Invocations",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${MonitorFunction}" ],
+                  [ ".", ".", ".", "${WebhookFunction}" ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda Errors",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${MonitorFunction}" ],
+                  [ ".", ".", ".", "${WebhookFunction}" ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda Duration (p95)",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${MonitorFunction}", { "stat": "p95" } ],
+                  [ ".", ".", ".", "${WebhookFunction}", { "stat": "p95" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "API Gateway — Requests & 4xx/5xx",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "AWS/ApiGateway", "Count", "ApiId", "${WebhookApi}" ],
+                  [ ".", "4xx", ".", "." ],
+                  [ ".", "5xx", ".", "." ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 12, "width": 12, "height": 6,
+              "properties": {
+                "title": "Slack Posts Succeeded",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "HospitalityHQ", "SlackPostsSucceeded", { "stat": "Sum" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 12, "width": 12, "height": 6,
+              "properties": {
+                "title": "Custom: Errors & Auth Failures",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "HospitalityHQ", "ReservationProcessingErrors", { "stat": "Sum" } ],
+                  [ ".", "HospitableAuthErrors", { "stat": "Sum" } ],
+                  [ ".", "WebhookAuthFailures", { "stat": "Sum" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 18, "width": 12, "height": 6,
+              "properties": {
+                "title": "High Urgency Messages",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "HospitalityHQ", "HighUrgencyMessages", { "stat": "Sum" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 18, "width": 12, "height": 6,
+              "properties": {
+                "title": "DynamoDB Throttles",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                  [ "AWS/DynamoDB", "ThrottledRequests", "TableName", "${MessagesTable}" ]
+                ]
+              }
+            }
+          ]
+        }
+
 Outputs:
   WebhookApiUrl:
     Description: Webhook endpoint URL — register this with Hospitable
@@ -122,3 +459,9 @@ Outputs:
   MessagesTableName:
     Description: Name of the DynamoDB messages table
     Value: !Ref MessagesTable
+  AlarmsTopicArn:
+    Description: SNS topic for CloudWatch alarms
+    Value: !Ref AlarmsTopic
+  DashboardUrl:
+    Description: CloudWatch dashboard URL
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${Dashboard}"
