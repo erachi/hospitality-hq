@@ -58,8 +58,18 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
-        - SSMParameterReadPolicy:
-            ParameterName: !Sub "${SSMPrefix}/*"
+        # NOTE: We build the SSM ARN explicitly instead of using SAM's
+        # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
+        # ParameterName, so a ParameterName that starts with "/" (like
+        # "/hospitality-hq/*") yields "parameter//hospitality-hq/*" — an
+        # invalid ARN that silently denies all reads.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
       Events:
         WebhookPost:
           Type: HttpApi
@@ -84,8 +94,18 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
-        - SSMParameterReadPolicy:
-            ParameterName: !Sub "${SSMPrefix}/*"
+        # NOTE: We build the SSM ARN explicitly instead of using SAM's
+        # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
+        # ParameterName, so a ParameterName that starts with "/" (like
+        # "/hospitality-hq/*") yields "parameter//hospitality-hq/*" — an
+        # invalid ARN that silently denies all reads.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
       Events:
         ScheduledCheck:
           Type: Schedule
@@ -143,8 +163,18 @@ Resources:
           SSM_PREFIX: !Ref SSMPrefix
           OPS_SLACK_CHANNEL_ID: !Ref OpsSlackChannelId
       Policies:
-        - SSMParameterReadPolicy:
-            ParameterName: !Sub "${SSMPrefix}/*"
+        # NOTE: We build the SSM ARN explicitly instead of using SAM's
+        # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
+        # ParameterName, so a ParameterName that starts with "/" (like
+        # "/hospitality-hq/*") yields "parameter//hospitality-hq/*" — an
+        # invalid ARN that silently denies all reads.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
       Events:
         AlarmsSNS:
           Type: SNS
@@ -158,7 +188,6 @@ Resources:
 
   SlackPostsSucceededFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: MonitorFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
       FilterPattern: '"Posted Slack alert for message"'
@@ -170,7 +199,6 @@ Resources:
 
   SlackPostsSucceededWebhookFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: WebhookFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${WebhookFunction}"
       FilterPattern: '"Posted Slack alert for webhook"'
@@ -182,7 +210,6 @@ Resources:
 
   ReservationProcessingErrorsFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: MonitorFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
       FilterPattern: '"Error processing reservation"'
@@ -194,7 +221,6 @@ Resources:
 
   HighUrgencyMessagesFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: MonitorFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
       FilterPattern: '"/ HIGH"'
@@ -206,7 +232,6 @@ Resources:
 
   HospitableAuthErrorsMonitorFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: MonitorFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${MonitorFunction}"
       FilterPattern: '"401 Client Error"'
@@ -218,7 +243,6 @@ Resources:
 
   HospitableAuthErrorsWebhookFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: WebhookFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${WebhookFunction}"
       FilterPattern: '"401 Client Error"'
@@ -230,7 +254,6 @@ Resources:
 
   WebhookAuthFailuresFilter:
     Type: AWS::Logs::MetricFilter
-    DependsOn: WebhookFunction
     Properties:
       LogGroupName: !Sub "/aws/lambda/${WebhookFunction}"
       FilterPattern: '"Invalid webhook signature"'
