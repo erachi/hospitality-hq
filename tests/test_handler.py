@@ -200,6 +200,60 @@ def test_handler_resolves_property_name_from_kb(
     assert call_kwargs["property_name"] == "Villa Bougainvillea"
 
 
+@mock_aws
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.post_guest_alert")
+def test_handler_handles_null_body_without_crashing(
+    mock_slack, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+):
+    """Messages with body=None (attachments, etc.) must not crash the handler."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-null-body",
+            "property_id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e",
+            "checkin": "2026-04-20",
+            "checkout": "2026-04-25",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    # Two messages: one with null body (attachment), one normal
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-attachment",
+            "body": None,
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": "2026-04-20T22:00:00Z",
+        },
+        {
+            "id": "msg-real",
+            "body": "Hi!",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": "2026-04-20T22:01:00Z",
+        },
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    mock_classify.return_value = {"category": "GENERAL", "urgency": "LOW", "summary": "hi"}
+    mock_draft.return_value = "Hi there!"
+    mock_slack.return_value = {"ok": True}
+
+    # Must complete without exceptions
+    import json as _json
+    result = lambda_handler({}, None)
+    body = _json.loads(result["body"])
+    assert body["errors"] == []
+    # Real message posts to Slack; attachment is marked as empty + skipped
+    assert body["alerts_posted"] == 1
+
+
 def test_build_conversation_summary():
     """Should build a readable summary of recent messages."""
     messages = [

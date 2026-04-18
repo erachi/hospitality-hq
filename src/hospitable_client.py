@@ -66,6 +66,11 @@ class HospitableClient:
                     },
                 )
                 reservations = data.get("data", [])
+                # Hospitable's list-reservations endpoint doesn't return
+                # property_id on reservations — attach it ourselves since we
+                # already know which property we queried.
+                for res in reservations:
+                    res["property_id"] = prop_uuid
                 all_reservations.extend(reservations)
 
                 # Check if there are more pages
