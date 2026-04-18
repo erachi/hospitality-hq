@@ -119,7 +119,7 @@ def process_webhook_message(
     conversation_history = build_conversation_summary(messages)
 
     # Get the message text from the webhook payload
-    msg_text = data.get("body", "")
+    msg_text = data.get("body") or ""
     if not msg_text.strip():
         tracker.mark_message_processed(
             reservation_id, webhook_id, "EMPTY", "LOW", property_name

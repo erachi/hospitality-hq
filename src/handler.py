@@ -140,7 +140,8 @@ def process_reservation(
     # Process each new guest message
     for msg in new_guest_messages:
         msg_id = str(msg.get("id", ""))
-        msg_text = msg.get("body", "")
+        # Hospitable can return body: null for non-text messages (e.g. attachments)
+        msg_text = msg.get("body") or ""
         msg_time = msg.get("created_at", "")
 
         if not msg_text.strip():
@@ -243,7 +244,7 @@ def build_conversation_summary(messages: list[dict]) -> str:
     lines = []
     for msg in recent:
         sender = msg.get("sender_type", "unknown")
-        body = msg.get("body", "")
+        body = msg.get("body") or ""
         if body:
             label = "GUEST" if sender == "guest" else "HOST"
             # Truncate long messages
