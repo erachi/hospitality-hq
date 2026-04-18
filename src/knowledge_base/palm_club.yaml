@@ -1,205 +1,254 @@
-# The Palm Club — Knowledge Base
-# Edit this file via PR. Static section = rock-solid facts. Dynamic section = curated from past conversations.
-
 property:
-  id: "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
-  name: "The Palm Club"
-  nickname: "Moreland 7426"
-  address: "7426 E Moreland St, Scottsdale, AZ"
-  welcome_message: >-
-    Welcome to your ultimate Scottsdale retreat. We're so excited to host you at The Palm Club,
-    your home base for relaxing, celebrating, and enjoying everything Scottsdale has to offer.
-    Whether you're lounging by the pool, playing pickleball, or enjoying the game room with friends,
-    we hope you make the most of every moment here.
-
+  id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570
+  name: The Palm Club
+  nickname: Moreland 7426
+  address: 7426 E Moreland St, Scottsdale, AZ
+  welcome_message: Welcome to your ultimate Scottsdale retreat. We're so excited to host you at The Palm
+    Club, your home base for relaxing, celebrating, and enjoying everything Scottsdale has to offer. Whether
+    you're lounging by the pool, playing pickleball, or enjoying the game room with friends, we hope you
+    make the most of every moment here.
 static:
-  # ──────────────────────────────────────────────────────────────
-  # Wifi / Connectivity
-  # ──────────────────────────────────────────────────────────────
   wifi:
-    network: "Moreland"
-    password: "Welcome7426!!"
-
-  # ──────────────────────────────────────────────────────────────
-  # Parking
-  # ──────────────────────────────────────────────────────────────
+    network: Moreland
+    password: Welcome7426!!
   parking:
-    driveway_capacity: "2 vehicles"
-    street_parking: "Not permitted. All vehicles must be parked in the driveway during the stay."
-
-  # ──────────────────────────────────────────────────────────────
-  # Trash / Recycling
-  # ──────────────────────────────────────────────────────────────
+    driveway_capacity: 2 vehicles
+    street_parking: Not permitted. All vehicles must be parked in the driveway during the stay.
   trash:
-    collection_days: "Mondays and Fridays"
-    recycling_rule: "Do NOT place plastic bags in the recycling bin."
-
-  # ──────────────────────────────────────────────────────────────
-  # Regular Service (landscaping, pool)
-  # ──────────────────────────────────────────────────────────────
+    collection_days: Mondays and Fridays
+    recycling_rule: Do NOT place plastic bags in the recycling bin.
   regular_service:
     landscaping:
-      day: "Every Tuesday"
+      day: Every Tuesday
     pool_servicing:
-      day: "Every Tuesday (same day as landscaping)"
-    access: "Landscapers and pool technicians access the property via the side gate — they do NOT enter the house."
-
-  # ──────────────────────────────────────────────────────────────
-  # House Rules
-  # ──────────────────────────────────────────────────────────────
+      day: Every Tuesday (same day as landscaping)
+    access: Landscapers and pool technicians access the property via the side gate — they do NOT enter
+      the house.
   quiet_hours:
-    hours: "10 PM to 7 AM"
-    scope: "Includes outdoor areas and the game room karaoke system."
-    reason: "Respect for our neighbors."
-    enforcement: "Please keep noise levels low during these hours."
-
-  # ──────────────────────────────────────────────────────────────
-  # Pool
-  # ──────────────────────────────────────────────────────────────
+    hours: 10 PM to 7 AM
+    scope: Includes outdoor areas and the game room karaoke system.
+    reason: Respect for our neighbors.
+    enforcement: Please keep noise levels low during these hours.
   pool:
     heating:
-      advance_notice: "At least 48 hours"
-      service_charge: "$250"
-      typical_temperature: "~85°F (depending on outdoor temperature)"
-      how_to_request: "Message us at least 48 hours before you'd like heating on."
-    vacuum: "Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your stay."
+      advance_notice: At least 48 hours
+      service_charge: $250
+      typical_temperature: ~85°F (depending on outdoor temperature)
+      how_to_request: Message us at least 48 hours before you'd like heating on.
+    vacuum: Please do NOT unplug or remove the pool vacuum — it keeps the pool clean for your stay.
     rules:
-      - "No glass in or around the pool area"
-      - "No diving"
-      - "Children must be supervised at all times"
-      - "Please rinse off lotions or sunscreen before entering when possible"
-      - "Please return pool floats to the deck box after use"
-      - "Please deflate floats after use so they remain in good condition for future guests"
-    floats_location: "Deck box outside"
-
-  # ──────────────────────────────────────────────────────────────
-  # Hot Tub
-  # ──────────────────────────────────────────────────────────────
+    - No glass in or around the pool area
+    - No diving
+    - Children must be supervised at all times
+    - Please rinse off lotions or sunscreen before entering when possible
+    - Please return pool floats to the deck box after use
+    - Please deflate floats after use so they remain in good condition for future guests
+    floats_location: Deck box outside
   hot_tub:
     rules:
-      - "No glass in or around the hot tub"
-      - "Please rinse your feet before entering"
-      - "Avoid using lotions, oils, or sunscreen in the hot tub"
-      - "Keep the cover closed when not in use to maintain heat and cleanliness"
-      - "Children must be supervised at all times"
-
-  # ──────────────────────────────────────────────────────────────
-  # Outdoor Amenities & Games
-  # ──────────────────────────────────────────────────────────────
+    - No glass in or around the hot tub
+    - Please rinse your feet before entering
+    - Avoid using lotions, oils, or sunscreen in the hot tub
+    - Keep the cover closed when not in use to maintain heat and cleanliness
+    - Children must be supervised at all times
   outdoor_games:
     available:
-      - "Pickleball court"
-      - "Cornhole"
-      - "Connect 4"
-      - "Pool volleyball"
-    floats_location: "Deck box outside"
-    inflatables_pump: "Top cabinet in the laundry room (electric pump)"
-
+    - Pickleball court
+    - Cornhole
+    - Connect 4
+    - Pool volleyball
+    floats_location: Deck box outside
+    inflatables_pump: Top cabinet in the laundry room (electric pump)
   pickleball:
-    paddle_location: "Laundry room"
-    ball_location: "First drawer in the laundry room"
+    paddle_location: Laundry room
+    ball_location: First drawer in the laundry room
     rules:
-      - "Return paddles to the laundry room after use"
-      - "Be mindful of neighbors when playing early morning or late at night"
-      - "Do not hang on the net"
-      - "Keep food and drinks off the court"
-
-  # ──────────────────────────────────────────────────────────────
-  # Game Room
-  # ──────────────────────────────────────────────────────────────
+    - Return paddles to the laundry room after use
+    - Be mindful of neighbors when playing early morning or late at night
+    - Do not hang on the net
+    - Keep food and drinks off the court
   game_room:
     amenities:
-      - "Pool table"
-      - "Karaoke machine"
+    - Pool table
+    - Karaoke machine
     rules:
-      - "Turn off all table lamps when finished."
-      - "Be mindful of quiet hours when using the karaoke system."
-
+    - Turn off all table lamps when finished.
+    - Be mindful of quiet hours when using the karaoke system.
   karaoke:
-    location: "Game room (machine + microphones)"
-    connectivity: "Bluetooth enabled — instructions included with the machine."
-    restriction: "Not to be used during quiet hours (10 PM – 7 AM)."
-
-  # ──────────────────────────────────────────────────────────────
-  # Get Ready Room
-  # ──────────────────────────────────────────────────────────────
+    location: Game room (machine + microphones)
+    connectivity: Bluetooth enabled — instructions included with the machine.
+    restriction: Not to be used during quiet hours (10 PM – 7 AM).
   get_ready_room:
-    description: "A dedicated space for guests to prepare for events, nights out, or special occasions."
-    etiquette: "Please treat it with care."
-
-  # ──────────────────────────────────────────────────────────────
-  # BBQ Grill
-  # ──────────────────────────────────────────────────────────────
+    description: A dedicated space for guests to prepare for events, nights out, or special occasions.
+    etiquette: Please treat it with care.
   grill:
-    fuel: "Natural gas (directly connected — no propane tank required)"
+    fuel: Natural gas (directly connected — no propane tank required)
     operation_steps:
-      - "Push and turn each burner knob counterclockwise to the 9 o'clock position."
-      - "Press the ignite button on the right side."
-      - "Adjust burners as needed for cooking."
-    tool_location: "Kitchen drawer"
-
-  # ──────────────────────────────────────────────────────────────
-  # Firepit
-  # ──────────────────────────────────────────────────────────────
+    - Push and turn each burner knob counterclockwise to the 9 o'clock position.
+    - Press the ignite button on the right side.
+    - Adjust burners as needed for cooking.
+    tool_location: Kitchen drawer
   firepit:
-    fuel: "Natural gas (directly connected)"
+    fuel: Natural gas (directly connected)
     operation_steps:
-      - "Turn the silver knob counterclockwise until you hear gas flow."
-      - "Use the long lighter (kitchen drawer with BBQ utensils) to ignite the flame."
-      - "Adjust the flame as needed using the control knob."
-    shutdown: "Ensure the fire pit is fully turned off after use."
-
-  # ──────────────────────────────────────────────────────────────
-  # Outdoor Lighting
-  # ──────────────────────────────────────────────────────────────
+    - Turn the silver knob counterclockwise until you hear gas flow.
+    - Use the long lighter (kitchen drawer with BBQ utensils) to ignite the flame.
+    - Adjust the flame as needed using the control knob.
+    shutdown: Ensure the fire pit is fully turned off after use.
   string_lights:
     outdoor_dining_table:
-      switch_location: "Near the sliding glass door"
+      switch_location: Near the sliding glass door
     hot_tub_area:
-      switch_location: "On the left side of the pergola"
-    other: "All other outdoor lighting will turn on automatically."
-
-  # ──────────────────────────────────────────────────────────────
-  # TVs / Entertainment
-  # ──────────────────────────────────────────────────────────────
+      switch_location: On the left side of the pergola
+    other: All other outdoor lighting will turn on automatically.
   tvs:
     count: 4
     locations:
-      - "Living Room"
-      - "Game Room"
-      - "Bedroom 1"
-      - "Bedroom 3"
-    setup: "All TVs use Roku and should automatically enter Roku Guest Mode, allowing you to log into your personal streaming services during your stay."
-
-  # ──────────────────────────────────────────────────────────────
-  # Safety
-  # ──────────────────────────────────────────────────────────────
+    - Living Room
+    - Game Room
+    - Bedroom 1
+    - Bedroom 3
+    setup: All TVs use Roku and should automatically enter Roku Guest Mode, allowing you to log into your
+      personal streaming services during your stay.
   fire_extinguishers:
     locations:
-      - "Next to the grill (outdoor)"
-      - "Under the kitchen sink"
-
+    - Next to the grill (outdoor)
+    - Under the kitchen sink
   first_aid_kit:
-    location: "Top cabinet in the laundry room"
-
+    location: Top cabinet in the laundry room
   security:
-    exterior_cameras: "Installed outside the home. No cameras inside."
-    noise_monitoring: "Noise monitoring devices may be present to ensure quiet hours and occupancy limits are respected. These devices do NOT record conversations."
-
-  # ──────────────────────────────────────────────────────────────
-  # Not yet captured
-  # ──────────────────────────────────────────────────────────────
+    exterior_cameras: Installed outside the home. No cameras inside.
+    noise_monitoring: Noise monitoring devices may be present to ensure quiet hours and occupancy limits
+      are respected. These devices do NOT record conversations.
   pets:
     allowed: false
-    policy: "No pets allowed."
-
-  check_in: {}  # TODO
-  check_out: {}  # TODO
-  emergency_contacts: {}  # TODO
-
-# ──────────────────────────────────────────────────────────────────
-# Dynamic — populated by scripts/curate_knowledge_base.py
-# ──────────────────────────────────────────────────────────────────
+    policy: No pets allowed.
+  check_in: {}
+  check_out: {}
+  emergency_contacts: {}
 dynamic:
-  faqs: []
-  precedents: []
+  faqs:
+  - topic: checkin_time
+    question: What time is check-in?
+    answer: Check-in is available any time after 4:00 PM. Earlier check-in must be mutually agreed upon
+      in advance with the host.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: checkout_time
+    question: What time is checkout, and is late checkout available?
+    answer: Standard checkout is at 11:00 AM. Late checkout until 2:00 PM may be available depending on
+      the cleaning team's schedule and may include a small fee. Request early to confirm availability.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: checkout_instructions
+    question: What are the checkout instructions?
+    answer: 1. Place all used towels and washcloths on the bathroom floor and bring pool towels in from
+      outside. 2. Leave sheets and comforters on the beds as-is. 3. Dispose of all trash in the outdoor
+      city trash cans. Do not place plastic bags in the recycling bin. Trash collection occurs on Mondays
+      and Fridays. 4. Empty the outdoor grill of food or trash, ensure it is off, and avoid placing hot
+      ashes in trash cans. 5. Turn off all lights and ensure the stove is off. 6. Return any rearranged
+      furniture to its original location. 7. Double-check for personal belongings — forgotten items cannot
+      be returned. 8. Lock all doors, including sliding doors.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: wifi
+    question: What is the Wi-Fi network and password?
+    answer: 'Network: Moreland. Password: Welcome7426!!'
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: parking
+    question: Where can guests park?
+    answer: The driveway accommodates 2 vehicles. Street parking is not permitted — all vehicles must
+      be parked in the driveway.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: pool_heating
+    question: Can the pool be heated, and is there a fee?
+    answer: Yes, pool heating is available for a $250 service charge. Request at least 48 hours in advance.
+      The pool is typically heated to around 85°F depending on outdoor temperatures.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: pool_rules
+    question: What are the pool rules?
+    answer: No glass in or around the pool area. No diving. Children must be supervised at all times.
+      Rinse off lotions or sunscreen before entering when possible. Return pool floats to the deck box
+      after use and deflate them after use.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: pool_service
+    question: When does pool and landscaping service occur?
+    answer: Landscaping and pool servicing occur every Tuesday. Service providers access the property
+      via the side gate and will not enter the house.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: bbq_grill
+    question: How do I use the outdoor BBQ grill?
+    answer: The grill runs on natural gas — no propane tank needed. Push and turn each burner knob counterclockwise
+      to the 9 o'clock position, then press the ignite button on the right side. Adjust burners as needed.
+      BBQ tools are in the kitchen drawer.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: fire_pit
+    question: How do I use the fire pit?
+    answer: The fire pit runs on natural gas. Turn the silver knob counterclockwise until you hear gas
+      flow, then use the long lighter from the kitchen drawer to ignite. Adjust the flame with the control
+      knob. Ensure the fire pit is fully turned off after use.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: pickleball_court
+    question: Is there a pickleball court and where is the equipment?
+    answer: Yes, there is a pickleball court on the property. Paddles are stored in the laundry room and
+      extra pickleballs are in the first drawer in the laundry room. Return paddles after use and be mindful
+      of neighbors during early morning or late night play.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  - topic: quiet_hours
+    question: What are the quiet hours?
+    answer: Quiet hours are from 10 PM to 7 AM. This applies to all outdoor areas and the game room karaoke
+      system.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+    last_seen: '2026-04-18'
+  precedents:
+  - situation: Lock code could not be set as originally configured
+    what_we_did: Issued an alternate door code to the guest before arrival
+    source_reservations:
+    - e24d1d6f-d66c-4c78-92cc-99421b0c1aa4
+  - situation: Checkout instructions referenced outdated trash can labels ('Villa Bougainvillea') that
+      no longer apply.
+    what_we_did: Confirmed to the guest that using the city trash cans was fine, and flagged that the
+      checkout instructions needed to be updated to remove the outdated label reference.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+  - situation: Debris blew into the pool overnight before guests arrived.
+    what_we_did: Notified guests proactively at check-in and scheduled pool service to come the following
+      day to clean it.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+  - situation: Guest requested a late 2 PM checkout due to an afternoon flight.
+    what_we_did: Checked availability with the cleaning team, confirmed it was possible at no extra charge,
+      and updated the door code to remain active until 2 PM.
+    source_reservations:
+    - 2c18536f-50f8-4578-a42f-f79ee9f705f9
+  - situation: Host declined a booking request because the property was temporarily closed for final preparation
+      work before hosting guests.
+    what_we_did: Politely declined the reservation request and explained the property was undergoing finishing
+      touches, apologizing for the inconvenience.
+    source_reservations:
+    - 92f0e133-7bc3-4cce-af8b-0771f1611206
+  - situation: Guest submitted booking request with incorrect guest count (1 instead of 14)
+    what_we_did: Host asked the guest to update the booking request to reflect the accurate guest count
+      before approving the reservation
+    source_reservations:
+    - c2c9294e-f0f1-4df6-a8dd-82e0ee847a8b
