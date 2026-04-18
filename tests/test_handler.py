@@ -23,8 +23,10 @@ def test_handler_processes_new_guest_messages(
             "id": "res-123",
             "property_id": "prop-1",
             "property_name": "Villa Bougainvillea",
-            "checkin": "2026-04-20",
-            "checkout": "2026-04-25",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
             "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
         }
     ]
@@ -64,6 +66,14 @@ def test_handler_processes_new_guest_messages(
     # Verify Slack was called
     mock_slack.assert_called_once()
 
+    # Regression guard: Slack alert must receive non-empty check-in / check-out
+    # dates (bug where code read `checkin`/`checkout` but API returns
+    # `check_in`/`check_out` produced blank dates in the alert).
+    call_kwargs = mock_slack.call_args.kwargs
+    assert call_kwargs["checkin_date"] == "2026-04-20"
+    assert call_kwargs["checkout_date"] == "2026-04-25"
+    assert call_kwargs["booking_source"] == "airbnb"
+
 
 @mock_aws
 @patch("handler.HospitableClient")
@@ -77,8 +87,10 @@ def test_handler_skips_host_messages(mock_hospitable, dynamodb_table):
             "id": "res-123",
             "property_id": "prop-1",
             "property_name": "Villa Bougainvillea",
-            "checkin": "2026-04-20",
-            "checkout": "2026-04-25",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
             "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
         }
     ]
@@ -172,8 +184,10 @@ def test_handler_resolves_property_name_from_kb(
         {
             "id": "res-123",
             "property_id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e",
-            "checkin": "2026-04-20",
-            "checkout": "2026-04-25",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
             "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
         }
     ]
@@ -216,8 +230,10 @@ def test_handler_handles_null_body_without_crashing(
         {
             "id": "res-null-body",
             "property_id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e",
-            "checkin": "2026-04-20",
-            "checkout": "2026-04-25",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
             "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
         }
     ]
