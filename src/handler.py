@@ -103,6 +103,10 @@ def process_reservation(
     checkin = reservation.get("checkin", "")
     checkout = reservation.get("checkout", "")
 
+    # Booking source + status for the alert header
+    booking_source = reservation.get("source", "") or reservation.get("platform", "")
+    reservation_status = reservation.get("status", "")
+
     # Fetch messages for this reservation
     messages = hospitable.get_reservation_messages(res_uuid)
 
@@ -169,6 +173,9 @@ def process_reservation(
             conversation_history=conversation_history,
         )
 
+        # Last 5 messages as context in the alert
+        recent_messages = messages[-5:] if messages else []
+
         # Post to Slack
         slack_result = post_guest_alert(
             guest_name=guest_name,
@@ -179,6 +186,10 @@ def process_reservation(
             classification=classification,
             draft_response=draft,
             reservation_uuid=res_uuid,
+            booking_source=booking_source,
+            reservation_status=reservation_status,
+            is_repeat_guest=False,  # TODO: implement repeat guest detection
+            recent_messages=recent_messages,
         )
 
         if slack_result.get("ok"):

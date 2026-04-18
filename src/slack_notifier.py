@@ -1,4 +1,9 @@
-"""Slack notification formatting and posting."""
+"""Slack notification formatting and posting.
+
+Uses Slack Block Kit to render rich guest alerts with booking context, recent
+message history, and a draft response. Never sends messages to guests —
+drafts are for VJ or Maggie to review and send manually.
+"""
 
 import requests
 from config import get_slack_bot_token, SLACK_CHANNEL_ID
@@ -26,6 +31,169 @@ CATEGORY_LABEL = {
     "POSITIVE": "Positive Feedback",
 }
 
+STATUS_DISPLAY = {
+    "accepted": "Confirmed",
+    "checkpoint": "Checked In",
+    "inquiry": "Inquiry",
+    "cancelled": "Cancelled",
+    "declined": "Declined",
+}
+
+SOURCE_DISPLAY = {
+    "airbnb": "Airbnb",
+    "vrbo": "VRBO",
+    "booking": "Booking.com",
+    "direct": "Direct",
+    "homeaway": "HomeAway",
+}
+
+# Slack Block Kit hard limit per text field.
+_MAX_TEXT_LEN = 3000
+
+
+def _truncate(text: str, limit: int = _MAX_TEXT_LEN) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
+
+
+def _format_message_history(recent_messages: list[dict], trigger_message: str) -> str:
+    """Format last 3-5 messages for Block Kit display.
+
+    The triggering guest message is bolded so the host can spot it instantly.
+    """
+    if not recent_messages:
+        return "_No prior messages_"
+
+    trigger = (trigger_message or "").strip()
+    lines = []
+    for msg in recent_messages:
+        sender = msg.get("sender_type", msg.get("sender", ""))
+        body = (msg.get("body") or "").strip()
+        if not body:
+            continue
+        timestamp = msg.get("created_at", "")
+        label = "GUEST" if sender == "guest" else "HOST"
+        if body == trigger and sender == "guest":
+            lines.append(f"*[{label}]* *{body}*  _({timestamp})_")
+        else:
+            lines.append(f"*[{label}]* {body}  _({timestamp})_")
+
+    if not lines:
+        return "_No prior messages_"
+
+    return _truncate("\n".join(lines))
+
+
+def _format_source(source: str) -> str:
+    if not source:
+        return ""
+    return SOURCE_DISPLAY.get(source.lower(), source)
+
+
+def _format_status(status: str) -> str:
+    if not status:
+        return ""
+    return STATUS_DISPLAY.get(status.lower(), status)
+
+
+def _format_source_status(source: str, status: str) -> str:
+    source_s = _format_source(source)
+    status_s = _format_status(status)
+    if source_s and status_s:
+        return f"{source_s} · {status_s}"
+    return source_s or status_s or "—"
+
+
+def _build_blocks(
+    *,
+    guest_name: str,
+    property_name: str,
+    checkin_date: str,
+    checkout_date: str,
+    guest_message: str,
+    classification: dict,
+    draft_response: str,
+    reservation_uuid: str,
+    booking_source: str,
+    reservation_status: str,
+    is_repeat_guest: bool,
+    recent_messages: list[dict],
+) -> list[dict]:
+    urgency = classification.get("urgency", "MEDIUM")
+    category = classification.get("category", "GENERAL")
+    summary = classification.get("summary", "")
+
+    urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
+    category_icon = CATEGORY_EMOJI.get(category, "💬")
+    category_label = CATEGORY_LABEL.get(category, category)
+
+    if urgency == "HIGH":
+        header_text = f"🚨 {urgency_icon} {category_icon} {category_label} 🚨"
+    else:
+        header_text = f"{urgency_icon} {category_icon} {category_label}"
+
+    guest_badge = "_(Repeat)_" if is_repeat_guest else "_(New)_"
+    source_status = _format_source_status(booking_source, reservation_status)
+
+    if category == "POSITIVE":
+        action_text = "No response needed unless you'd like to reply."
+    else:
+        action_text = "Copy draft & send via Hospitable · React ❌ to skip"
+
+    history_text = _format_message_history(recent_messages, guest_message)
+    draft_block_text = _truncate(f">>> {draft_response}") if draft_response else ">>> _(no draft)_"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": header_text, "emoji": True},
+        },
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": _truncate(f"_{summary}_")}],
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Property*\n{property_name}"},
+                {"type": "mrkdwn", "text": f"*Guest*\n{guest_name} {guest_badge}"},
+                {"type": "mrkdwn", "text": f"*Dates*\n{checkin_date} → {checkout_date}"},
+                {"type": "mrkdwn", "text": f"*Source / Status*\n{source_status}"},
+            ],
+        },
+        {"type": "divider"},
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": "*RECENT MESSAGES*"}],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": history_text},
+        },
+        {"type": "divider"},
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": "*DRAFT RESPONSE*"}],
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": draft_block_text},
+        },
+        {"type": "divider"},
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"`{reservation_uuid}` · {action_text}",
+                },
+            ],
+        },
+    ]
+
+    return blocks
+
 
 def post_guest_alert(
     guest_name: str,
@@ -36,8 +204,12 @@ def post_guest_alert(
     classification: dict,
     draft_response: str,
     reservation_uuid: str,
+    booking_source: str = "",
+    reservation_status: str = "",
+    is_repeat_guest: bool = False,
+    recent_messages: list[dict] = None,
 ) -> dict:
-    """Post a formatted guest alert to the Slack channel.
+    """Post a Block Kit guest alert to the Slack channel.
 
     Returns the Slack API response.
     """
@@ -46,48 +218,25 @@ def post_guest_alert(
     summary = classification.get("summary", "")
 
     urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
-    category_icon = CATEGORY_EMOJI.get(category, "💬")
     category_label = CATEGORY_LABEL.get(category, category)
 
-    # Build the header
-    header = f"{urgency_icon} {category_icon} *{category_label}* — {property_name}"
-    if urgency == "HIGH":
-        header = f"🚨 {header} 🚨"
+    fallback_text = f"{urgency_icon} {category_label} — {property_name}: {summary}"
 
-    # Build the message
-    message_parts = [
-        header,
-        "",
-        f"*Guest:* {guest_name}",
-        f"*Dates:* {checkin_date} → {checkout_date}",
-        f"*Summary:* {summary}",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        f"*Guest said:*",
-        f"> {guest_message}",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        f"*Draft response:*",
-        f"```{draft_response}```",
-        "",
-        f"_Reservation: `{reservation_uuid}`_",
-    ]
+    blocks = _build_blocks(
+        guest_name=guest_name,
+        property_name=property_name,
+        checkin_date=checkin_date,
+        checkout_date=checkout_date,
+        guest_message=guest_message,
+        classification=classification,
+        draft_response=draft_response,
+        reservation_uuid=reservation_uuid,
+        booking_source=booking_source,
+        reservation_status=reservation_status,
+        is_repeat_guest=is_repeat_guest,
+        recent_messages=recent_messages or [],
+    )
 
-    # Add action instructions based on urgency
-    if category == "POSITIVE":
-        message_parts.append("\n_No response needed unless you'd like to reply._")
-    else:
-        message_parts.append(
-            "\n⚡ *To send this response:* Copy the draft above and send via Hospitable."
-            "\n✏️ *To edit:* Modify the draft first, then send."
-            "\n🚫 *To skip:* React with ❌ to mark as handled."
-        )
-
-    message = "\n".join(message_parts)
-
-    # Post to Slack
     response = requests.post(
         "https://slack.com/api/chat.postMessage",
         headers={
@@ -96,7 +245,8 @@ def post_guest_alert(
         },
         json={
             "channel": SLACK_CHANNEL_ID,
-            "text": message,
+            "text": fallback_text,
+            "blocks": blocks,
             "unfurl_links": False,
             "unfurl_media": False,
         },
