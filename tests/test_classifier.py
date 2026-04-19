@@ -17,13 +17,17 @@ def _mock_anthropic_response(text: str):
 def test_classify_urgent_maintenance(mock_client):
     """AC broken message should classify as URGENT_MAINTENANCE / HIGH."""
     mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
-        "CATEGORY: URGENT_MAINTENANCE\nURGENCY: HIGH\nSUMMARY: AC not working"
+        "CATEGORY: URGENT_MAINTENANCE\n"
+        "URGENCY: HIGH\n"
+        "RESPONSE_NEEDED: YES\n"
+        "SUMMARY: AC not working"
     )
 
     result = classify_message("The AC isn't working and it's really hot", "Villa Bougainvillea")
 
     assert result["category"] == "URGENT_MAINTENANCE"
     assert result["urgency"] == "HIGH"
+    assert result["response_needed"] is True
     assert "AC" in result["summary"]
 
 
@@ -31,31 +35,58 @@ def test_classify_urgent_maintenance(mock_client):
 def test_classify_pre_arrival(mock_client):
     """Check-in question should classify as PRE_ARRIVAL."""
     mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
-        "CATEGORY: PRE_ARRIVAL\nURGENCY: MEDIUM\nSUMMARY: Guest asking about check-in time"
+        "CATEGORY: PRE_ARRIVAL\n"
+        "URGENCY: MEDIUM\n"
+        "RESPONSE_NEEDED: YES\n"
+        "SUMMARY: Guest asking about check-in time"
     )
 
     result = classify_message("What time can we check in?", "The Palm Club")
 
     assert result["category"] == "PRE_ARRIVAL"
     assert result["urgency"] == "MEDIUM"
+    assert result["response_needed"] is True
 
 
 @patch("classifier._get_client")
 def test_classify_positive_feedback(mock_client):
-    """Positive message should classify as POSITIVE / LOW."""
+    """Pure thank-you should classify as POSITIVE / LOW with response_needed=False."""
     mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
-        "CATEGORY: POSITIVE\nURGENCY: LOW\nSUMMARY: Guest enjoyed their stay"
+        "CATEGORY: POSITIVE\n"
+        "URGENCY: LOW\n"
+        "RESPONSE_NEEDED: NO\n"
+        "SUMMARY: Guest enjoyed their stay"
     )
 
     result = classify_message("We had an amazing time, thank you!", "Villa Bougainvillea")
 
     assert result["category"] == "POSITIVE"
     assert result["urgency"] == "LOW"
+    assert result["response_needed"] is False
+
+
+@patch("classifier._get_client")
+def test_classify_positive_with_embedded_request_needs_response(mock_client):
+    """Thank-you + embedded ask should still flag response_needed=True."""
+    mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
+        "CATEGORY: POSITIVE\n"
+        "URGENCY: LOW\n"
+        "RESPONSE_NEEDED: YES\n"
+        "SUMMARY: Thanks plus early check-in request"
+    )
+
+    result = classify_message(
+        "Thank you so much! By the way, can we check in at 11?",
+        "Villa Bougainvillea",
+    )
+
+    assert result["category"] == "POSITIVE"
+    assert result["response_needed"] is True
 
 
 @patch("classifier._get_client")
 def test_classify_handles_malformed_response(mock_client):
-    """Malformed API response should fall back to GENERAL / MEDIUM."""
+    """Malformed API response should fall back to GENERAL / MEDIUM / response_needed=True."""
     mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
         "I'm not sure how to classify this"
     )
@@ -64,6 +95,8 @@ def test_classify_handles_malformed_response(mock_client):
 
     assert result["category"] == "GENERAL"
     assert result["urgency"] == "MEDIUM"
+    # Fail-safe: default must keep the host in the loop.
+    assert result["response_needed"] is True
 
 
 @patch("classifier._get_client")

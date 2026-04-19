@@ -86,8 +86,8 @@ def test_post_guest_alert_urgent_uses_block_kit(mock_token):
 
 @responses.activate
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_positive(mock_token):
-    """Positive feedback should surface the 'no response needed' footer."""
+def test_post_guest_alert_no_response_needed(mock_token):
+    """When the classifier says response_needed=False, footer suppresses the send call-to-action."""
     responses.add(
         responses.POST,
         "https://slack.com/api/chat.postMessage",
@@ -105,6 +105,7 @@ def test_post_guest_alert_positive(mock_token):
             "category": "POSITIVE",
             "urgency": "LOW",
             "summary": "Guest enjoyed their stay",
+            "response_needed": False,
         },
         draft_response="So glad you enjoyed it!",
         reservation_uuid="res-uuid-456",
@@ -115,6 +116,71 @@ def test_post_guest_alert_positive(mock_token):
     payload = _request_payload(responses.calls[0])
     text = _blocks_text(payload)
     assert "No response needed" in text
+    assert "Copy draft" not in text
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_post_guest_alert_positive_with_embedded_request_prompts_reply(mock_token):
+    """POSITIVE category + response_needed=True must still prompt the host to send a draft.
+
+    Regression guard: footer used to check `category == POSITIVE`, which
+    silenced the call-to-action on messages like "thanks! one more q…".
+    """
+    responses.add(
+        responses.POST,
+        "https://slack.com/api/chat.postMessage",
+        json={"ok": True, "ts": "1234567890.123456"},
+        status=200,
+    )
+
+    post_guest_alert(
+        guest_name="Amrit",
+        property_name="Villa Bougainvillea",
+        checkin_date="2026-04-29",
+        checkout_date="2026-05-03",
+        guest_message="thank you so much! by the way, can we check in at 11?",
+        classification={
+            "category": "POSITIVE",
+            "urgency": "LOW",
+            "summary": "Thanks + early check-in request",
+            "response_needed": True,
+        },
+        draft_response="Let me check on early check-in for you!",
+        reservation_uuid="res-uuid-789",
+    )
+
+    payload = _request_payload(responses.calls[0])
+    text = _blocks_text(payload)
+    assert "Copy draft" in text
+    assert "No response needed" not in text
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_post_guest_alert_defaults_to_response_needed(mock_token):
+    """If classification lacks response_needed, default to showing the send CTA."""
+    responses.add(
+        responses.POST,
+        "https://slack.com/api/chat.postMessage",
+        json={"ok": True, "ts": "1234567890.123456"},
+        status=200,
+    )
+
+    post_guest_alert(
+        guest_name="Test",
+        property_name="Test Property",
+        checkin_date="2026-04-20",
+        checkout_date="2026-04-25",
+        guest_message="Test",
+        classification={"category": "GENERAL", "urgency": "LOW", "summary": "Test"},
+        draft_response="Test",
+        reservation_uuid="res-default",
+    )
+
+    payload = _request_payload(responses.calls[0])
+    text = _blocks_text(payload)
+    assert "Copy draft" in text
 
 
 @responses.activate

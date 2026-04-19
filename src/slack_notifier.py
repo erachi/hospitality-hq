@@ -141,10 +141,13 @@ def _build_blocks(
     guest_badge = "_(Repeat)_" if is_repeat_guest else "_(New)_"
     source_status = _format_source_status(booking_source, reservation_status)
 
-    if category == "POSITIVE":
-        action_text = "No response needed unless you'd like to reply."
-    else:
+    # The classifier decides whether a reply is warranted; default True so
+    # stale or missing fields never silently suppress the draft.
+    response_needed = classification.get("response_needed", True)
+    if response_needed:
         action_text = "Copy draft & send via Hospitable · React ❌ to skip"
+    else:
+        action_text = "No response needed unless you'd like to reply."
 
     history_text = _format_message_history(recent_messages, guest_message)
     draft_block_text = _truncate(f">>> {draft_response}") if draft_response else ">>> _(no draft)_"
