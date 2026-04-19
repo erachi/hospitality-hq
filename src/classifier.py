@@ -13,7 +13,7 @@ def _get_client():
 
 CLASSIFICATION_PROMPT = """You are a guest issue classifier for a short-term rental property management system.
 
-Classify the following guest message into exactly ONE category and ONE urgency level.
+Classify the following guest message into exactly ONE category and ONE urgency level, and decide whether the host needs to send a response.
 
 Categories:
 - URGENT_MAINTENANCE: Lockouts, broken AC/heating, plumbing issues, electrical problems, safety hazards, no hot water, WiFi completely down
@@ -27,9 +27,14 @@ Urgency levels:
 - MEDIUM: Needs response within 4 hours (complaints, pre-arrival day-of questions)
 - LOW: Can wait 12+ hours (general inquiries, positive feedback, future-dated questions)
 
+Response needed:
+- YES if the message contains a question, a request, a problem to resolve, or anything that would feel rude to leave unanswered.
+- NO only for pure thanks/compliments/FYI with no embedded ask. A "thank you, and by the way can you…" still needs a response.
+
 Respond in this exact format (no other text):
 CATEGORY: <category>
 URGENCY: <urgency>
+RESPONSE_NEEDED: <YES|NO>
 SUMMARY: <one-line summary of the issue>"""
 
 
@@ -76,8 +81,14 @@ def classify_message(message_text: str, property_name: str) -> dict:
 
     result_text = response.content[0].text.strip()
 
-    # Parse the structured response
-    result = {"category": "GENERAL", "urgency": "MEDIUM", "summary": "Guest message"}
+    # Parse the structured response. Default response_needed to True — fail-safe
+    # towards surfacing the draft rather than silently suppressing it.
+    result = {
+        "category": "GENERAL",
+        "urgency": "MEDIUM",
+        "summary": "Guest message",
+        "response_needed": True,
+    }
 
     for line in result_text.split("\n"):
         line = line.strip()
@@ -85,6 +96,9 @@ def classify_message(message_text: str, property_name: str) -> dict:
             result["category"] = line.split(":", 1)[1].strip()
         elif line.startswith("URGENCY:"):
             result["urgency"] = line.split(":", 1)[1].strip()
+        elif line.startswith("RESPONSE_NEEDED:"):
+            value = line.split(":", 1)[1].strip().upper()
+            result["response_needed"] = value == "YES"
         elif line.startswith("SUMMARY:"):
             result["summary"] = line.split(":", 1)[1].strip()
 
