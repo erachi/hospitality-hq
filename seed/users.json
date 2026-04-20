@@ -1,13 +1,13 @@
 [
   {
     "id": "vj",
-    "slack_user_id": "REPLACE_WITH_VJ_SLACK_USER_ID",
+    "slack_user_id": "U0ARFQUDF71",
     "display_name": "VJ",
     "email": "vijayalex@gmail.com"
   },
   {
     "id": "maggie",
-    "slack_user_id": "REPLACE_WITH_MAGGIE_SLACK_USER_ID",
+    "slack_user_id": "U0ARTSBCWUD",
     "display_name": "Maggie",
     "email": ""
   }

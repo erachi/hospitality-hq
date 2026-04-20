@@ -21,7 +21,7 @@ import json
 import logging
 import time
 
-from config import get_slack_signing_secret, SLACK_CHANNEL_ID
+from config import get_slack_signing_secret, SLACK_CHANNEL_ID, TASKS_CHANNEL_ID
 from slack_notifier import post_thread_reply
 from thread_mapping import ThreadMapping
 from thread_logs import (
@@ -132,8 +132,19 @@ def _process_event(payload: dict) -> None:
         logger.info("Ignoring non-thread message")
         return
 
-    # Right channel only
+    # Dispatch by channel. Slack's Events API has one Request URL per app, so
+    # this single handler routes both workflows: guest-alerts threads stay
+    # below, task threads go to task_handler.
     channel = inner.get("channel", "")
+    if TASKS_CHANNEL_ID and channel == TASKS_CHANNEL_ID:
+        # Lazy import to avoid circular references and to keep the guest-alerts
+        # cold path lean.
+        from task_handler import handle_task_thread_message
+
+        handle_task_thread_message(inner)
+        return
+
+    # Guest-alerts channel only
     if SLACK_CHANNEL_ID and channel != SLACK_CHANNEL_ID:
         logger.info(f"Ignoring message in other channel: {channel}")
         return

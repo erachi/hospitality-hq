@@ -109,3 +109,4 @@ Tasks that don't belong to a specific property go to `🏢 Business-wide`:
 - Static config (properties + users) is in `s3://hospitality-hq-tasks/config/`.
 - Code is in `src/task_*.py`. SAM template has the AWS resources.
 - Design discussion history is in the PR description for the initial rollout.
+- Slack Events (thread replies) share one URL with the guest-alerts workflow (`/slack/events`); `thread_handler.py` dispatches task-channel events to `task_handler.handle_task_thread_message`.

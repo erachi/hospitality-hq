@@ -502,9 +502,58 @@ def _thread_reply(task: Task, text: str) -> None:
 
 
 # ─── Events API: thread replies become comments ──────────────────────────
+#
+# NOTE: Slack supports only ONE Events Request URL per app. The existing
+# thread_handler.py is already wired to that URL for guest-alerts thread
+# interactions. This module exposes `handle_task_thread_message(inner)` so
+# thread_handler can dispatch events in TASKS_CHANNEL_ID to us. We keep
+# _route_event here for completeness (and tests), but in production it is
+# not exposed as its own route.
+
+
+def handle_task_thread_message(inner: dict) -> None:
+    """Process a Slack message event in the tasks channel.
+
+    Called by thread_handler when it sees a message whose channel matches
+    TASKS_CHANNEL_ID. Assumes the caller has already done signature
+    verification and subtype/bot filtering — we defensively re-check the
+    bits that matter (thread_ts present, non-empty text).
+    """
+    if inner.get("type") != "message":
+        return
+    if inner.get("bot_id") or inner.get("app_id"):
+        return
+
+    thread_ts = inner.get("thread_ts")
+    ts = inner.get("ts")
+    if not thread_ts or thread_ts == ts:
+        return
+
+    text = (inner.get("text") or "").strip()
+    if not text:
+        return
+
+    store = TaskStore()
+    task = store.get_task_by_thread(thread_ts)
+    if not task:
+        # Not a known task thread — could be another thread in the same
+        # channel (e.g. a manual discussion). Ignore quietly.
+        return
+
+    user_slack_id = inner.get("user", "")
+    user = store.get_user_by_slack_id(user_slack_id)
+    user_id = user["id"] if user else user_slack_id
+
+    task.comments.append(Comment.new(user_id=user_id, body=text, slack_message_ts=ts))
+    store.put(task)
 
 
 def _route_event(payload: dict) -> dict:
+    """Fallback events handler (not wired in production — see module docstring).
+
+    Kept so the task Lambda can still respond to url_verification if its
+    events route is ever used standalone, and to keep existing tests green.
+    """
     ptype = payload.get("type")
     if ptype == "url_verification":
         return {
@@ -516,40 +565,15 @@ def _route_event(payload: dict) -> dict:
         return _ok()
 
     inner = payload.get("event", {}) or {}
-    if inner.get("type") != "message":
-        return _ok()
     subtype = inner.get("subtype")
     if subtype and subtype not in ("file_share",):
-        return _ok()
-    if inner.get("bot_id") or inner.get("app_id"):
-        return _ok()
-
-    thread_ts = inner.get("thread_ts")
-    ts = inner.get("ts")
-    if not thread_ts or thread_ts == ts:
         return _ok()
 
     channel = inner.get("channel", "")
     if TASKS_CHANNEL_ID and channel != TASKS_CHANNEL_ID:
         return _ok()
 
-    store = TaskStore()
-    task = store.get_task_by_thread(thread_ts)
-    if not task:
-        # Could be a guest-alert thread in the same channel (shouldn't happen
-        # if channels are separate, but be defensive).
-        return _ok()
-
-    text = (inner.get("text") or "").strip()
-    if not text:
-        return _ok()
-
-    user_slack_id = inner.get("user", "")
-    user = store.get_user_by_slack_id(user_slack_id)
-    user_id = user["id"] if user else user_slack_id
-
-    task.comments.append(Comment.new(user_id=user_id, body=text, slack_message_ts=ts))
-    store.put(task)
+    handle_task_thread_message(inner)
     return _ok()
 
 

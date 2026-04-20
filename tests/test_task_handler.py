@@ -386,3 +386,119 @@ def test_retry_header_acks_without_processing(tasks_bucket):
     }
     result = slack_tasks_handler(event, None)
     assert result["statusCode"] == 200
+
+
+def test_handle_task_thread_message_appends_comment(tasks_bucket):
+    """Direct call into the shared event handler used by thread_handler dispatch."""
+    from task_handler import handle_task_thread_message
+    from task_models import Task
+    from task_store import TaskStore
+
+    store = TaskStore()
+    t = Task.new(
+        title="dispatched task",
+        description="",
+        property_id="prop-palm",
+        assignee_id="vj",
+        created_by_id="vj",
+    )
+    t.slack_channel_id = "C_TEST_TASKS"
+    t.slack_message_ts = "1700000000.000020"
+    store.put(t)
+    store.put_slack_index(thread_ts="1700000000.000020", task_id=t.id)
+
+    inner = {
+        "type": "message",
+        "channel": "C_TEST_TASKS",
+        "thread_ts": "1700000000.000020",
+        "ts": "1700000000.000021",
+        "user": "UMAGGIE",
+        "text": "dispatched comment",
+    }
+    handle_task_thread_message(inner)
+
+    updated = store.get(t.id)
+    assert len(updated.comments) == 1
+    assert updated.comments[0].body == "dispatched comment"
+
+
+def test_handle_task_thread_message_ignores_unknown_thread(tasks_bucket):
+    """If the thread_ts doesn't map to any task, do nothing — don't crash."""
+    from task_handler import handle_task_thread_message
+
+    inner = {
+        "type": "message",
+        "channel": "C_TEST_TASKS",
+        "thread_ts": "1700000000.999999",
+        "ts": "1700000000.999998",
+        "user": "UVJ",
+        "text": "orphan comment",
+    }
+    handle_task_thread_message(inner)  # should not raise
+
+
+def test_thread_handler_dispatches_tasks_channel_to_task_handler(
+    tasks_bucket, all_thread_tables, ssm_with_secrets
+):
+    """End-to-end: a thread reply in TASKS_CHANNEL_ID reaches the task handler
+    via the existing /slack/events endpoint.
+    """
+    import os
+    from unittest.mock import patch
+
+    from task_models import Task
+    from task_store import TaskStore
+
+    # Seed a task
+    store = TaskStore()
+    t = Task.new(
+        title="cross-handler task",
+        description="",
+        property_id="prop-palm",
+        assignee_id="vj",
+        created_by_id="vj",
+    )
+    t.slack_channel_id = os.environ["TASKS_CHANNEL_ID"]
+    t.slack_message_ts = "1700000000.111111"
+    store.put(t)
+    store.put_slack_index(thread_ts="1700000000.111111", task_id=t.id)
+
+    # Build a signed Slack event arriving at thread_handler
+    event_payload = {
+        "type": "event_callback",
+        "event": {
+            "type": "message",
+            "channel": os.environ["TASKS_CHANNEL_ID"],
+            "thread_ts": "1700000000.111111",
+            "ts": "1700000000.111112",
+            "user": "UMAGGIE",
+            "text": "via /slack/events",
+        },
+    }
+    body = json.dumps(event_payload)
+    ts = str(int(time.time()))
+    sig = _sign(body, ts)
+
+    # thread_handler uses its own signing-secret getter — patch it
+    with patch(
+        "thread_handler.get_slack_signing_secret",
+        lambda: SIGNING_SECRET,
+    ):
+        from thread_handler import slack_events_handler
+
+        result = slack_events_handler(
+            {
+                "body": body,
+                "headers": {
+                    "content-type": "application/json",
+                    "x-slack-request-timestamp": ts,
+                    "x-slack-signature": sig,
+                },
+            },
+            None,
+        )
+
+    assert result["statusCode"] == 200
+    updated = store.get(t.id)
+    assert len(updated.comments) == 1
+    assert updated.comments[0].body == "via /slack/events"

@@ -192,7 +192,11 @@ Resources:
         - AttributeName: log_id
           KeyType: RANGE
 
-  # Receives Slack Events API callbacks for in-thread replies.
+  # Receives Slack Events API callbacks. Slack supports only ONE events
+  # Request URL per app, so this single Lambda handles both workflows:
+  # guest-alerts thread replies (local) and task thread comments
+  # (dispatched into task_handler.handle_task_thread_message based on
+  # channel).
   ThreadEventHandler:
     Type: AWS::Serverless::Function
     Properties:
@@ -200,7 +204,7 @@ Resources:
       Handler: thread_handler.slack_events_handler
       CodeUri: src/
       Timeout: 15  # Slack retries after 3s; keep handler tight
-      Description: Processes Slack thread replies (Q&A, notes, issues, resolutions)
+      Description: Processes Slack thread replies for both guest alerts and tasks
       Environment:
         Variables:
           SSM_PREFIX: !Ref SSMPrefix
@@ -209,11 +213,15 @@ Resources:
           THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
           THREAD_LOGS_TABLE: !Ref ThreadLogsTable
           DYNAMODB_TABLE: !Ref MessagesTable
+          TASKS_BUCKET: !Ref TasksBucket
+          TASKS_CHANNEL_ID: !Ref TasksChannelId
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadMappingTable
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadLogsTable
+        - S3CrudPolicy:
+            BucketName: !Ref TasksBucket
         - Statement:
             - Effect: Allow
               Action:
@@ -294,12 +302,10 @@ Resources:
             ApiId: !Ref WebhookApi
             Path: /slack/tasks/interactions
             Method: POST
-        TaskEvents:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref WebhookApi
-            Path: /slack/tasks/events
-            Method: POST
+        # Note: no /slack/tasks/events route — Slack supports only ONE
+        # Events Request URL per app, so task thread comments come in via
+        # the shared /slack/events route and are dispatched by channel in
+        # ThreadEventHandler.
 
   # Daily digest of overdue + due-today tasks. Sends DMs to each assignee
   # and shouts anything badly overdue into the channel.
@@ -699,6 +705,6 @@ Outputs:
   TaskInteractionsUrl:
     Description: Slack interactivity Request URL — point Interactivity here
     Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/tasks/interactions"
-  TaskEventsUrl:
-    Description: Slack events Request URL — subscribe message.channels here
-    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/tasks/events"
+  SlackEventsUrl:
+    Description: Slack Events API Request URL — leave unchanged; dispatches both workflows by channel
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/events"
