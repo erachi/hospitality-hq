@@ -85,3 +85,11 @@ THREAD_LOGS_TABLE = os.environ.get("THREAD_LOGS_TABLE", "hospitality-hq-thread-l
 # Monitoring settings
 RESERVATION_LOOKBACK_DAYS = 3
 RESERVATION_LOOKAHEAD_DAYS = 30
+
+# ─── Task-management workflow ─────────────────────────────────────────────
+# S3 bucket holding task JSON objects + static config (properties, users).
+TASKS_BUCKET = os.environ.get("TASKS_BUCKET", "hospitality-hq-tasks")
+
+# Slack channel where task cards are posted. Separate from the guest-alerts
+# channel so the two workflows don't pollute each other.
+TASKS_CHANNEL_ID = os.environ.get("TASKS_CHANNEL_ID", "")

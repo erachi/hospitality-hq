@@ -24,6 +24,14 @@ Parameters:
   OpsSlackChannelId:
     Type: String
     Description: Slack channel ID for ops alerts (e.g. #hospitality-hq-ops)
+  TasksChannelId:
+    Type: String
+    Default: ""
+    Description: Slack channel ID where task cards are posted (e.g. #tasks)
+  TasksBucketName:
+    Type: String
+    Default: "hospitality-hq-tasks"
+    Description: S3 bucket holding task JSON objects and static config
 
 Globals:
   Function:
@@ -220,6 +228,112 @@ Resources:
             ApiId: !Ref WebhookApi
             Path: /slack/events
             Method: POST
+
+  # ═══════════════════════════════════════════════════════════════
+  # Task-management workflow: /task slash command, interactive buttons,
+  # thread-reply comments, daily overdue escalator. All state lives in S3.
+  # ═══════════════════════════════════════════════════════════════
+
+  # Bucket holds:
+  #   config/properties.json, config/users.json — static seed data
+  #   tasks/<id>.json                           — one object per task
+  #   indexes/slack/<thread_ts>.json            — thread → task pointers
+  # Versioning on gives us an audit trail for free.
+  TasksBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TasksBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # Handles all Slack traffic for the task workflow: slash commands,
+  # interactive components (buttons + modal submissions), and thread
+  # replies as comments.
+  TaskSlackHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-task-slack
+      Handler: task_handler.slack_tasks_handler
+      CodeUri: src/
+      Timeout: 15  # Slack retries after 3s; keep handler tight
+      Description: Slack slash commands, modals, buttons, and thread replies for tasks
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          TASKS_BUCKET: !Ref TasksBucket
+          TASKS_CHANNEL_ID: !Ref TasksChannelId
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref TasksBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
+      Events:
+        SlashCommand:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/tasks/commands
+            Method: POST
+        Interactions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/tasks/interactions
+            Method: POST
+        TaskEvents:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/tasks/events
+            Method: POST
+
+  # Daily digest of overdue + due-today tasks. Sends DMs to each assignee
+  # and shouts anything badly overdue into the channel.
+  TaskEscalator:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-task-escalator
+      Handler: task_escalator.lambda_handler
+      CodeUri: src/
+      Description: Daily overdue-task digest — DMs and channel summary
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          TASKS_BUCKET: !Ref TasksBucket
+          TASKS_CHANNEL_ID: !Ref TasksChannelId
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref TasksBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
+      Events:
+        DailyDigest:
+          Type: Schedule
+          Properties:
+            # 16:00 UTC = 09:00 America/Phoenix (MST, no DST). Phoenix
+            # does not observe DST, so this mapping is stable year-round.
+            Schedule: cron(0 16 * * ? *)
+            Description: Daily task digest at 9am Phoenix
+            Enabled: true
 
   # ═══════════════════════════════════════════════════════════════
   # Observability: SNS topic → Email + Slack alarm handler
@@ -576,3 +690,15 @@ Outputs:
   DashboardUrl:
     Description: CloudWatch dashboard URL
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${Dashboard}"
+  TasksBucketName:
+    Description: S3 bucket holding task JSON objects and static config
+    Value: !Ref TasksBucket
+  TaskSlashCommandUrl:
+    Description: Slack slash command Request URL — point /task here
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/tasks/commands"
+  TaskInteractionsUrl:
+    Description: Slack interactivity Request URL — point Interactivity here
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/tasks/interactions"
+  TaskEventsUrl:
+    Description: Slack events Request URL — subscribe message.channels here
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/tasks/events"

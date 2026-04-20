@@ -16,6 +16,8 @@ os.environ["PROPERTY_UUIDS"] = "test-prop-uuid-1,test-prop-uuid-2"
 os.environ["DYNAMODB_TABLE"] = "hospitality-hq-messages-test"
 os.environ["THREAD_MAPPING_TABLE"] = "hospitality-hq-thread-mapping-test"
 os.environ["THREAD_LOGS_TABLE"] = "hospitality-hq-thread-logs-test"
+os.environ["TASKS_BUCKET"] = "hospitality-hq-tasks-test"
+os.environ["TASKS_CHANNEL_ID"] = "C_TEST_TASKS"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
@@ -183,6 +185,65 @@ def sample_host_message():
         "source": "manual",
         "created_at": "2026-04-20T22:20:00Z",
     }
+
+
+@pytest.fixture
+def tasks_bucket():
+    """Mock S3 bucket seeded with properties + users config.
+
+    TaskStore caches config per process via lru_cache, so tests that need
+    different seed data between invocations should clear that cache.
+    """
+    import json
+
+    with mock_aws():
+        s3 = boto3.client("s3", region_name="us-east-1")
+        s3.create_bucket(Bucket="hospitality-hq-tasks-test")
+
+        properties = [
+            {
+                "id": "prop-palm",
+                "name": "The Palm Club",
+                "slug": "palm",
+                "timezone": "America/Phoenix",
+            },
+            {
+                "id": "prop-villa",
+                "name": "Villa Bougainvillea",
+                "slug": "villa",
+                "timezone": "America/Phoenix",
+            },
+        ]
+        users = [
+            {"id": "vj", "slack_user_id": "UVJ", "display_name": "VJ"},
+            {"id": "maggie", "slack_user_id": "UMAGGIE", "display_name": "Maggie"},
+        ]
+        s3.put_object(
+            Bucket="hospitality-hq-tasks-test",
+            Key="config/properties.json",
+            Body=json.dumps(properties).encode("utf-8"),
+        )
+        s3.put_object(
+            Bucket="hospitality-hq-tasks-test",
+            Key="config/users.json",
+            Body=json.dumps(users).encode("utf-8"),
+        )
+
+        # Reset the lru_cache on TaskStore methods so each test sees its own
+        # fixture state. TaskStore is instantiated per test, so the cached
+        # methods are bound to instance — but lru_cache on bound methods
+        # caches on the class; clear defensively.
+        try:
+            from task_store import TaskStore
+
+            for attr in ("load_properties", "load_users"):
+                fn = getattr(TaskStore, attr, None)
+                if fn and hasattr(fn, "cache_clear"):
+                    fn.cache_clear()
+        except ImportError:
+            pass
+
+        yield s3
 
 
 @pytest.fixture
