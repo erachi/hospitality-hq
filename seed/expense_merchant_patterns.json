@@ -1,0 +1,23 @@
+[
+  {"pattern": "Home Depot",         "category_id": "supplies",        "note": "Default; flip to repairs for contractor charges"},
+  {"pattern": "Lowes",              "category_id": "supplies",        "note": null},
+  {"pattern": "Lowe's",             "category_id": "supplies",        "note": null},
+  {"pattern": "Costco",             "category_id": "supplies",        "note": null},
+  {"pattern": "Amazon",             "category_id": "supplies",        "note": "Often supplies; confirm"},
+  {"pattern": "Target",             "category_id": "supplies",        "note": null},
+  {"pattern": "Walmart",            "category_id": "supplies",        "note": null},
+  {"pattern": "Ace Hardware",       "category_id": "supplies",        "note": null},
+  {"pattern": "Roto-Rooter",        "category_id": "repairs",         "note": null},
+  {"pattern": "HVAC",               "category_id": "repairs",         "note": null},
+  {"pattern": "APS",                "category_id": "utilities",       "note": "Arizona Public Service"},
+  {"pattern": "SRP",                "category_id": "utilities",       "note": "Salt River Project"},
+  {"pattern": "Cox",                "category_id": "utilities",       "note": null},
+  {"pattern": "CenturyLink",        "category_id": "utilities",       "note": null},
+  {"pattern": "EPCOR",              "category_id": "utilities",       "note": null},
+  {"pattern": "City of Scottsdale", "category_id": "utilities",       "note": "water / trash"},
+  {"pattern": "State Farm",         "category_id": "insurance",       "note": null},
+  {"pattern": "Allstate",           "category_id": "insurance",       "note": null},
+  {"pattern": "Hospitable",         "category_id": "management_fees", "note": null},
+  {"pattern": "Airbnb Service Fee", "category_id": "commissions",     "note": null},
+  {"pattern": "VRBO",               "category_id": "commissions",     "note": null}
+]

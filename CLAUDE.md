@@ -1,9 +1,10 @@
 # Hospitality HQ
 
-Two workflows for short-term rental ops, sharing a Slack app and AWS stack:
+Three workflows for short-term rental ops, sharing a Slack app and AWS stack:
 
 1. **Guest monitoring** — watches Hospitable for new guest messages, classifies them, drafts replies, posts to `#guest-alerts` for human approval.
 2. **Task management** — `/task` slash command + interactive Slack cards for VJ and Maggie to track internal work (fixes, compliance, marketing). Backed by S3.
+3. **Expense capture** — receipt photo → `#expenses` → OCR via Claude vision → Schedule E category → filed as JSON on S3 with receipt image under Object Lock. See `EXPENSES.md` for the design; capture + classify is the MVP, year-end export is v2.
 
 ## What This Does
 
@@ -12,6 +13,9 @@ Monitors guest conversations across properties, classifies issues by urgency, dr
 
 ### Task management
 Internal tracker used by VJ and Maggie only. `/task` opens a modal; cards post to `#tasks` with Mark-done / Start / Block / Swap-assignee buttons; thread replies become comments; a daily cron DMs overdue + due-today digests. Tasks live as JSON objects in S3 (versioning on). See `TASKS_CHEATSHEET.md` for user-facing docs.
+
+### Expense capture
+Any team member drops a receipt photo in `#expenses`; Claude vision extracts merchant / date / total, suggests a Schedule E category, and posts a Block Kit card for one-click confirmation. Categories map 1:1 to IRS Schedule E lines (no invented subcategories). Each expense is one JSON at `s3://hospitality-hq-expenses/expenses/<year>/<id>.json`; original receipt images live under `receipts/` with 7-year Object Lock GOVERNANCE retention applied per-object. See `EXPENSES.md` for the design doc.
 
 ## Architecture
 
@@ -47,9 +51,16 @@ hospitality_hq/
 │   ├── task_slack_client.py  # Thin Slack Web API wrapper (tasks)
 │   ├── task_handler.py       # Slash commands, buttons, thread replies
 │   ├── task_escalator.py     # Daily overdue-task DM digest
+│   ├── expense_models.py     # Expense / Allocation dataclasses + helpers
+│   ├── expense_store.py      # S3-backed CRUD for expenses + receipt images
+│   ├── expense_categories.py # Schedule E taxonomy + merchant rule matching
 │   └── requirements.txt      # Python dependencies
 ├── tests/                    # Test suite (pytest + moto + responses)
-├── seed/                     # Static task config (properties, users)
+├── seed/                     # Static config
+│   ├── properties.json       # Shared by tasks and expenses
+│   ├── users.json            # Tasks workflow only
+│   ├── expense_categories.json     # Schedule E taxonomy
+│   └── expense_merchant_patterns.json  # Merchant → category rules
 ├── .github/workflows/ci.yml  # GitHub Actions CI
 ├── template.yaml             # AWS SAM deployment template
 ├── setup-secrets.sh          # Script to store secrets in SSM
@@ -58,6 +69,7 @@ hospitality_hq/
 ├── ARCHITECTURE.md           # Detailed system design
 ├── DEPLOY.md                 # Deployment guide
 ├── PHASE2_PLAN.md            # Webhook-based real-time architecture
+├── EXPENSES.md               # Expense-capture workflow design doc
 └── FEATURES.md               # Feature development framework
 ```
 

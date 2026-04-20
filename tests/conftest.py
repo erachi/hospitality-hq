@@ -18,6 +18,8 @@ os.environ["THREAD_MAPPING_TABLE"] = "hospitality-hq-thread-mapping-test"
 os.environ["THREAD_LOGS_TABLE"] = "hospitality-hq-thread-logs-test"
 os.environ["TASKS_BUCKET"] = "hospitality-hq-tasks-test"
 os.environ["TASKS_CHANNEL_ID"] = "C_TEST_TASKS"
+os.environ["EXPENSES_BUCKET"] = "hospitality-hq-expenses-test"
+os.environ["EXPENSES_CHANNEL_ID"] = "C_TEST_EXPENSES"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
@@ -243,6 +245,23 @@ def tasks_bucket():
         except ImportError:
             pass
 
+        yield s3
+
+
+@pytest.fixture
+def expenses_bucket():
+    """Mock S3 bucket for the expense workflow, with Object Lock enabled.
+
+    Categories and merchant patterns are bundled with the Lambda (seed/),
+    not stored in S3 — so this fixture only creates the bucket and
+    leaves seeding to the test.
+    """
+    with mock_aws():
+        s3 = boto3.client("s3", region_name="us-east-1")
+        s3.create_bucket(
+            Bucket="hospitality-hq-expenses-test",
+            ObjectLockEnabledForBucket=True,
+        )
         yield s3
 
 

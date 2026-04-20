@@ -32,6 +32,14 @@ Parameters:
     Type: String
     Default: "hospitality-hq-tasks"
     Description: S3 bucket holding task JSON objects and static config
+  ExpensesBucketName:
+    Type: String
+    Default: "hospitality-hq-expenses"
+    Description: S3 bucket holding expense JSON + receipt images
+  ExpensesChannelId:
+    Type: String
+    Default: ""
+    Description: Slack channel ID for #expenses (where receipts are dropped)
 
 Globals:
   Function:
@@ -254,6 +262,49 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+
+  # ═══════════════════════════════════════════════════════════════
+  # Expense-capture workflow — S3 storage for receipts and metadata
+  # ═══════════════════════════════════════════════════════════════
+  #
+  # Bucket holds:
+  #   expenses/<year>/<id>.json       — one object per expense
+  #   receipts/<year>/<id>.<ext>      — original image (Object Lock per-object)
+  #   thumbs/<year>/<id>.jpg          — preview served to Slack
+  #   exports/<year>/<export_id>.zip  — year-end accountant bundle
+  #   indexes/slack/<thread_ts>.json  — thread → expense pointer
+  #
+  # Object Lock is enabled at bucket creation (required — cannot be added
+  # later). No default retention — retention is applied per-object when
+  # uploading to receipts/, so JSON metadata and exports remain mutable.
+  ExpensesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ExpensesBucketName
+      ObjectLockEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: transition-receipts-to-deep-archive
+            Status: Enabled
+            Prefix: receipts/
+            Transitions:
+              - TransitionInDays: 365
+                StorageClass: DEEP_ARCHIVE
+          - Id: expire-exports-after-90-days
+            Status: Enabled
+            Prefix: exports/
+            ExpirationInDays: 90
 
   # Handles all Slack traffic for the task workflow: slash commands,
   # interactive components (buttons + modal submissions), and thread
@@ -702,3 +753,6 @@ Outputs:
   TaskEventsUrl:
     Description: Slack events Request URL — subscribe message.channels here
     Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/tasks/events"
+  ExpensesBucketName:
+    Description: S3 bucket holding expense JSON and receipt images
+    Value: !Ref ExpensesBucket
