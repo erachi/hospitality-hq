@@ -1,0 +1,16 @@
+[
+  {
+    "id": "3278e9cb-9239-487f-aa51-cbfbaf4b7570",
+    "name": "The Palm Club",
+    "slug": "palm",
+    "hospitable_property_id": "3278e9cb-9239-487f-aa51-cbfbaf4b7570",
+    "timezone": "America/Phoenix"
+  },
+  {
+    "id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e",
+    "name": "Villa Bougainvillea",
+    "slug": "villa",
+    "hospitable_property_id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e",
+    "timezone": "America/Phoenix"
+  }
+]
