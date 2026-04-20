@@ -387,7 +387,7 @@ One row per allocation — a Costco split shows as two rows summing to the recei
 
 ### Generation
 
-`expense_export` Lambda. Queries Postgres, renders PDF via WeasyPrint, zips, uploads to `s3://.../exports/`, returns a 30-day signed URL in Slack, and (v2) emails to the accountant.
+`expense_export` Lambda. Queries Postgres, renders PDF via WeasyPrint, zips, uploads to `s3://.../exports/`, returns a 30-day signed URL in Slack. VJ forwards the URL to the accountant manually — automated email delivery is not on the roadmap.
 
 ### Monthly preview
 
@@ -468,7 +468,6 @@ Explicitly **out** of MVP:
 - Learned merchant rules (hand-seed only for MVP).
 - Monthly summary post.
 - Duplicate detection.
-- Accountant email delivery (export URL lands in Slack; VJ forwards).
 - `is_personal` + Skip button (submitter just doesn't upload it).
 - `expense_events` audit log rows (but `created_at`/`updated_at` from day one).
 
@@ -481,7 +480,6 @@ Explicitly **out** of MVP:
 - Learned merchant rules (override → insert).
 - `is_personal` / Skip.
 - `expense_events` writes on every mutation.
-- Accountant email delivery.
 
 ### v3+
 
@@ -496,15 +494,20 @@ Explicitly **out** of MVP:
 
 ## 10. Open questions and risks
 
-### Must decide before writing code
+### Resolved (2026-04-20)
 
-1. **Postgres host: Supabase, Neon, or RDS?** Recommend Supabase for the Maggie-browsable UI. Confirm or override.
-2. **Channel model: `#expenses` only, or also DM-to-bot?** Recommend channel-only for MVP (simpler, team-visible). DM in v2.
-3. **Who can edit a filed expense?** Recommend: submitter + VJ + Maggie. Lock in before writing auth checks.
-4. **Approval step?** Recommend no — submitter-confirmed is enough for a 4-person team. The monthly summary is the compensating control.
-5. **Does Moreland have a Hospitable listing?** Affects `properties.hospitable_id` nullability. Left nullable in the schema — safe default, but worth confirming.
-6. **Accountant email on file?** Needed for v2 email delivery of the year-end zip.
-7. **Shared payment-method vocabulary?** Do we normalize ("VJ Amex", "Christin Amex", "Business Debit")? Or just freeform? Recommend a small enum seeded from known cards, with a text fallback.
+| # | Question | Decision |
+|---|---|---|
+| 1 | Postgres host | **Supabase** — free tier covers volume; Table Editor gives Maggie the browsable UI |
+| 2 | Channel vs. DM entry point | **`#expenses` channel only for MVP.** DM-to-bot deferred |
+| 3 | Edit rights on a filed expense | **Submitter + VJ + Maggie.** Christin / Asher can file but not edit |
+| 4 | Approval step | **No approval.** Submitter-confirmed card = final write. Monthly summary is the compensating control |
+| 5 | Accountant email delivery | **Not wanted.** Year-end export stays as a signed Slack URL; VJ forwards manually |
+| 6 | Payment-method vocabulary | **Freeform text.** No enum, no seeded card list |
+
+### Still open
+
+- **Moreland's Hospitable listing.** VJ said "same as Palm Club" — clarification pending on whether that means Moreland shares the Palm Club listing ID (one Hospitable listing, two physical houses) or has its own distinct listing. Either way, `properties.hospitable_id` stays as-is in the schema; this only affects how the ingest pipeline maps Hospitable data to our `properties` rows.
 
 ### Tax / recordkeeping — honor from day one
 
