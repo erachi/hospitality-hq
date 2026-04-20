@@ -50,6 +50,7 @@ def test_post_guest_alert_urgent_uses_block_kit(mock_token):
             "category": "URGENT_MAINTENANCE",
             "urgency": "HIGH",
             "summary": "AC not working",
+            "descriptor": "AC Not Working",
         },
         draft_response="Hi Jane! I'm so sorry about the AC...",
         reservation_uuid="res-uuid-123",
@@ -65,16 +66,23 @@ def test_post_guest_alert_urgent_uses_block_kit(mock_token):
     assert payload["unfurl_links"] is False
     assert payload["unfurl_media"] is False
 
-    # Plain-text fallback for mobile notifications.
+    # Plain-text fallback for mobile notifications — descriptor, not category label.
+    assert "AC Not Working" in payload["text"]
     assert "Villa Bougainvillea" in payload["text"]
-    assert "AC not working" in payload["text"]
 
     text = _blocks_text(payload)
-    assert "Villa Bougainvillea" in text
+    # Header uses the uppercased descriptor + property, flanked with 🚨 for HIGH.
+    header_block = payload["blocks"][0]
+    assert header_block["type"] == "header"
+    header_text = header_block["text"]["text"]
+    assert "AC NOT WORKING" in header_text
+    assert "Villa Bougainvillea" in header_text
+    assert "🚨" in header_text
+    # The old category-emoji combo (🔧) should no longer appear in the header.
+    assert "🔧" not in header_text
+
     assert "Jane Smith" in text
     assert "2026-04-20" in text and "2026-04-25" in text
-    # HIGH urgency should be flanked with emergency emoji in the header.
-    assert "🚨" in text
     # Source + status should be human-friendly.
     assert "Airbnb" in text
     assert "Checked In" in text
@@ -82,6 +90,69 @@ def test_post_guest_alert_urgent_uses_block_kit(mock_token):
     assert "res-uuid-123" in text
     # New guest badge by default.
     assert "(New)" in text
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_post_guest_alert_header_non_high_urgency(mock_token):
+    """Non-HIGH urgency uses a plain urgency dot, not the 🚨 flanking."""
+    responses.add(
+        responses.POST,
+        "https://slack.com/api/chat.postMessage",
+        json={"ok": True, "ts": "1234567890.123456"},
+        status=200,
+    )
+
+    post_guest_alert(
+        guest_name="Amrit",
+        property_name="Villa Bougainvillea",
+        checkin_date="2026-04-29",
+        checkout_date="2026-05-03",
+        guest_message="Can we check in at 11?",
+        classification={
+            "category": "PRE_ARRIVAL",
+            "urgency": "LOW",
+            "summary": "Early check-in request",
+            "descriptor": "Early Check-in Request",
+        },
+        draft_response="Let me check on that!",
+        reservation_uuid="res-uuid-999",
+    )
+
+    payload = _request_payload(responses.calls[0])
+    header_text = payload["blocks"][0]["text"]["text"]
+    assert "EARLY CHECK-IN REQUEST" in header_text
+    assert "Villa Bougainvillea" in header_text
+    assert "🟢" in header_text  # LOW urgency dot
+    assert "🚨" not in header_text
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_post_guest_alert_header_falls_back_without_descriptor(mock_token):
+    """Missing descriptor falls back to the category label so the header still reads sensibly."""
+    responses.add(
+        responses.POST,
+        "https://slack.com/api/chat.postMessage",
+        json={"ok": True, "ts": "1234567890.123456"},
+        status=200,
+    )
+
+    post_guest_alert(
+        guest_name="Test",
+        property_name="The Palm Club",
+        checkin_date="2026-04-20",
+        checkout_date="2026-04-25",
+        guest_message="hello",
+        classification={"category": "GENERAL", "urgency": "MEDIUM", "summary": "hi"},
+        draft_response="hi",
+        reservation_uuid="res-fallback",
+    )
+
+    payload = _request_payload(responses.calls[0])
+    header_text = payload["blocks"][0]["text"]["text"]
+    assert "GENERAL INQUIRY" in header_text
+    assert "The Palm Club" in header_text
 
 
 @responses.activate

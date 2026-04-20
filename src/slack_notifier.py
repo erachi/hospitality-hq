@@ -15,14 +15,6 @@ URGENCY_EMOJI = {
     "LOW": "🟢",
 }
 
-CATEGORY_EMOJI = {
-    "URGENT_MAINTENANCE": "🔧",
-    "COMPLAINT": "😤",
-    "PRE_ARRIVAL": "✈️",
-    "GENERAL": "💬",
-    "POSITIVE": "⭐",
-}
-
 CATEGORY_LABEL = {
     "URGENT_MAINTENANCE": "Urgent Maintenance",
     "COMPLAINT": "Guest Complaint",
@@ -128,15 +120,23 @@ def _build_blocks(
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
     summary = classification.get("summary", "")
+    # Short action-oriented phrase from the classifier ("Early Check-in Request"),
+    # not a category label. Fall back to the category label if missing/blank so
+    # the header still reads sensibly.
+    descriptor = (classification.get("descriptor") or "").strip()
+    if not descriptor:
+        descriptor = CATEGORY_LABEL.get(category, category)
 
     urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
-    category_icon = CATEGORY_EMOJI.get(category, "💬")
-    category_label = CATEGORY_LABEL.get(category, category)
 
+    # Header: `{urgency} {DESCRIPTOR} · {property}`. HIGH flanked with 🚨 so it
+    # stands out in the channel list. The descriptor is uppercased for visual
+    # weight in the Slack header block.
+    lede = f"{descriptor.upper()} · {property_name}"
     if urgency == "HIGH":
-        header_text = f"🚨 {urgency_icon} {category_icon} {category_label} 🚨"
+        header_text = f"🚨 {lede} 🚨"
     else:
-        header_text = f"{urgency_icon} {category_icon} {category_label}"
+        header_text = f"{urgency_icon} {lede}"
 
     guest_badge = "_(Repeat)_" if is_repeat_guest else "_(New)_"
     source_status = _format_source_status(booking_source, reservation_status)
@@ -235,11 +235,12 @@ def post_guest_alert(
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
     summary = classification.get("summary", "")
+    descriptor = (classification.get("descriptor") or "").strip() or CATEGORY_LABEL.get(category, category)
 
     urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
-    category_label = CATEGORY_LABEL.get(category, category)
 
-    fallback_text = f"{urgency_icon} {category_label} — {property_name}: {summary}"
+    # Mobile push-notification fallback — mirror the header lede plus summary.
+    fallback_text = f"{urgency_icon} {descriptor} — {property_name}: {summary}"
 
     blocks = _build_blocks(
         guest_name=guest_name,

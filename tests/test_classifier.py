@@ -20,6 +20,7 @@ def test_classify_urgent_maintenance(mock_client):
         "CATEGORY: URGENT_MAINTENANCE\n"
         "URGENCY: HIGH\n"
         "RESPONSE_NEEDED: YES\n"
+        "DESCRIPTOR: AC Not Working\n"
         "SUMMARY: AC not working"
     )
 
@@ -28,6 +29,7 @@ def test_classify_urgent_maintenance(mock_client):
     assert result["category"] == "URGENT_MAINTENANCE"
     assert result["urgency"] == "HIGH"
     assert result["response_needed"] is True
+    assert result["descriptor"] == "AC Not Working"
     assert "AC" in result["summary"]
 
 
@@ -38,6 +40,7 @@ def test_classify_pre_arrival(mock_client):
         "CATEGORY: PRE_ARRIVAL\n"
         "URGENCY: MEDIUM\n"
         "RESPONSE_NEEDED: YES\n"
+        "DESCRIPTOR: Check-in Time Question\n"
         "SUMMARY: Guest asking about check-in time"
     )
 
@@ -46,6 +49,7 @@ def test_classify_pre_arrival(mock_client):
     assert result["category"] == "PRE_ARRIVAL"
     assert result["urgency"] == "MEDIUM"
     assert result["response_needed"] is True
+    assert result["descriptor"] == "Check-in Time Question"
 
 
 @patch("classifier._get_client")
@@ -55,6 +59,7 @@ def test_classify_positive_feedback(mock_client):
         "CATEGORY: POSITIVE\n"
         "URGENCY: LOW\n"
         "RESPONSE_NEEDED: NO\n"
+        "DESCRIPTOR: Thank You Note\n"
         "SUMMARY: Guest enjoyed their stay"
     )
 
@@ -63,6 +68,7 @@ def test_classify_positive_feedback(mock_client):
     assert result["category"] == "POSITIVE"
     assert result["urgency"] == "LOW"
     assert result["response_needed"] is False
+    assert result["descriptor"] == "Thank You Note"
 
 
 @patch("classifier._get_client")
@@ -72,6 +78,7 @@ def test_classify_positive_with_embedded_request_needs_response(mock_client):
         "CATEGORY: POSITIVE\n"
         "URGENCY: LOW\n"
         "RESPONSE_NEEDED: YES\n"
+        "DESCRIPTOR: Early Check-in Request\n"
         "SUMMARY: Thanks plus early check-in request"
     )
 
@@ -82,6 +89,7 @@ def test_classify_positive_with_embedded_request_needs_response(mock_client):
 
     assert result["category"] == "POSITIVE"
     assert result["response_needed"] is True
+    assert result["descriptor"] == "Early Check-in Request"
 
 
 @patch("classifier._get_client")
@@ -97,6 +105,8 @@ def test_classify_handles_malformed_response(mock_client):
     assert result["urgency"] == "MEDIUM"
     # Fail-safe: default must keep the host in the loop.
     assert result["response_needed"] is True
+    # Descriptor has a generic fallback so the Slack header still renders.
+    assert result["descriptor"] == "Guest Message"
 
 
 @patch("classifier._get_client")
