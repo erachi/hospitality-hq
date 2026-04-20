@@ -374,3 +374,74 @@ def test_post_guest_alert_without_history(mock_token):
     payload = _request_payload(responses.calls[0])
     text = _blocks_text(payload)
     assert "No prior messages" in text
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_post_guest_alert_renders_conversation_summary(mock_token):
+    """When conversation_summary is provided, the block appears above the history."""
+    responses.add(
+        responses.POST,
+        "https://slack.com/api/chat.postMessage",
+        json={"ok": True, "ts": "1234567890.123456"},
+        status=200,
+    )
+
+    summary = (
+        "• *Agreed so far:* Guest to complete rental agreement + ID\n"
+        "• *Still open:* Early check-in at 11am needs verification"
+    )
+
+    post_guest_alert(
+        guest_name="Amrit",
+        property_name="Villa Bougainvillea",
+        checkin_date="2026-04-29",
+        checkout_date="2026-05-03",
+        guest_message="Can we check in at 11?",
+        classification={"category": "PRE_ARRIVAL", "urgency": "LOW", "summary": "Early check-in"},
+        draft_response="Let me check on that.",
+        reservation_uuid="res-sum",
+        conversation_summary=summary,
+    )
+
+    payload = _request_payload(responses.calls[0])
+    text = _blocks_text(payload)
+    assert "CONVERSATION SUMMARY" in text
+    assert "Agreed so far" in text
+    assert "Still open" in text
+
+    # Summary must precede history in the rendered blocks so the host sees
+    # the at-a-glance view first.
+    summary_idx = text.index("CONVERSATION SUMMARY")
+    history_idx = text.index("CONVERSATION HISTORY")
+    assert summary_idx < history_idx
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_post_guest_alert_omits_summary_block_when_empty(mock_token):
+    """Empty or missing conversation_summary should not emit a SUMMARY block."""
+    responses.add(
+        responses.POST,
+        "https://slack.com/api/chat.postMessage",
+        json={"ok": True, "ts": "1234567890.123456"},
+        status=200,
+    )
+
+    post_guest_alert(
+        guest_name="Jane",
+        property_name="The Palm Club",
+        checkin_date="2026-04-20",
+        checkout_date="2026-04-25",
+        guest_message="hi",
+        classification={"category": "GENERAL", "urgency": "LOW", "summary": "Hi"},
+        draft_response="hi",
+        reservation_uuid="res-no-sum",
+        conversation_summary="",
+    )
+
+    payload = _request_payload(responses.calls[0])
+    text = _blocks_text(payload)
+    assert "CONVERSATION SUMMARY" not in text
+    # History still renders.
+    assert "CONVERSATION HISTORY" in text

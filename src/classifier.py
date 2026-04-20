@@ -115,6 +115,56 @@ def classify_message(message_text: str, property_name: str) -> dict:
     return result
 
 
+CONVERSATION_SUMMARY_PROMPT = """You are summarizing a guest-host conversation thread for a short-term rental host who needs to triage a new guest message at a glance.
+
+Produce EXACTLY two Slack-mrkdwn bullet points, each starting with "• ":
+• *Agreed so far:* what commitments, bookings, or confirmations have been made by either side — short clause. If none, say "nothing yet".
+• *Still open:* what the guest is waiting on, what the host still needs to verify or do, or what's ambiguous — short clause. If nothing's open, say "nothing open".
+
+Keep each bullet to one line (max ~150 chars). No preamble, no trailing prose. If the thread is too thin to summarize, output:
+• *Agreed so far:* nothing yet
+• *Still open:* nothing open"""
+
+
+def summarize_conversation(messages: list[dict], property_name: str) -> str:
+    """Build a 2-bullet summary of a reservation conversation thread.
+
+    Returns an empty string if there's not enough history to bother summarizing
+    (fewer than 2 messages). Uses Haiku — ~$0.001 and ~500ms per call.
+    """
+    if not messages or len(messages) < 2:
+        return ""
+
+    # Build a compact transcript. Keep the full thread if it fits; otherwise
+    # trim to the most recent 30 messages, which covers most guest threads.
+    window = messages[-30:]
+    lines = []
+    for msg in window:
+        sender = msg.get("sender_type", "")
+        body = (msg.get("body") or "").strip()
+        if not body:
+            continue
+        label = "GUEST" if sender == "guest" else "HOST"
+        if len(body) > 400:
+            body = body[:400] + "..."
+        lines.append(f"[{label}] {body}")
+
+    if not lines:
+        return ""
+
+    transcript = "\n".join(lines)
+    user_content = f"Property: {property_name}\n\nConversation:\n{transcript}"
+
+    response = _get_client().messages.create(
+        model=CLASSIFY_MODEL,
+        max_tokens=300,
+        messages=[{"role": "user", "content": user_content}],
+        system=CONVERSATION_SUMMARY_PROMPT,
+    )
+
+    return response.content[0].text.strip()
+
+
 def draft_response(
     message_text: str,
     property_name: str,

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from config import PROPERTY_UUIDS
 from hospitable_client import HospitableClient
 from state_tracker import StateTracker
-from classifier import classify_message, draft_response
+from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
 from knowledge_base_loader import load_kb, format_for_claude, get_property_name
 
@@ -186,6 +186,15 @@ def process_reservation(
         # Last 5 messages as context in the alert
         recent_messages = messages[-5:] if messages else []
 
+        # 2-bullet Haiku summary of the full thread, shown above the raw
+        # history in Slack so the host can triage at a glance. Never fail
+        # the alert if the summary call errors — it's a nice-to-have.
+        try:
+            thread_summary = summarize_conversation(messages, property_name)
+        except Exception as e:
+            logger.warning(f"Conversation summary failed for {res_uuid}: {e}")
+            thread_summary = ""
+
         # Post to Slack
         slack_result = post_guest_alert(
             guest_name=guest_name,
@@ -200,6 +209,7 @@ def process_reservation(
             reservation_status=reservation_status,
             is_repeat_guest=False,  # TODO: implement repeat guest detection
             recent_messages=recent_messages,
+            conversation_summary=thread_summary,
         )
 
         if slack_result.get("ok"):

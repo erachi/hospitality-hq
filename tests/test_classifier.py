@@ -1,7 +1,7 @@
 """Tests for issue classifier and response drafter."""
 
 from unittest.mock import patch, MagicMock
-from classifier import classify_message, draft_response
+from classifier import classify_message, draft_response, summarize_conversation
 
 
 def _mock_anthropic_response(text: str):
@@ -198,3 +198,44 @@ def test_draft_uses_correct_models(mock_client):
 
     call_args = mock_client.return_value.messages.create.call_args
     assert "sonnet" in call_args.kwargs["model"]
+
+
+@patch("classifier._get_client")
+def test_summarize_conversation_returns_bullets(mock_client):
+    """Summary call sends the transcript to Haiku and returns the stripped output."""
+    mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
+        "• *Agreed so far:* Guest to complete rental agreement + ID\n"
+        "• *Still open:* Early check-in at 11am needs verification\n"
+    )
+
+    messages = [
+        {"sender_type": "host", "body": "Please sign the rental agreement", "created_at": "t1"},
+        {"sender_type": "guest", "body": "Will do today", "created_at": "t2"},
+        {"sender_type": "guest", "body": "Can we check in at 11?", "created_at": "t3"},
+    ]
+
+    result = summarize_conversation(messages, "Villa Bougainvillea")
+
+    assert "Agreed so far" in result
+    assert "Still open" in result
+    # Stripped of trailing whitespace/newlines.
+    assert not result.endswith("\n")
+
+    # Uses Haiku (cheap), not Sonnet.
+    call_args = mock_client.return_value.messages.create.call_args
+    assert "haiku" in call_args.kwargs["model"]
+    # Transcript makes it into the prompt body.
+    assert "rental agreement" in call_args.kwargs["messages"][0]["content"]
+
+
+@patch("classifier._get_client")
+def test_summarize_conversation_skips_thin_threads(mock_client):
+    """Threads with fewer than 2 messages aren't worth an API call."""
+    assert summarize_conversation([], "Villa Bougainvillea") == ""
+    assert summarize_conversation(
+        [{"sender_type": "guest", "body": "hi"}],
+        "Villa Bougainvillea",
+    ) == ""
+
+    # No call was made.
+    mock_client.return_value.messages.create.assert_not_called()

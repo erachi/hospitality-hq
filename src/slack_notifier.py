@@ -116,6 +116,7 @@ def _build_blocks(
     reservation_status: str,
     is_repeat_guest: bool,
     recent_messages: list[dict],
+    conversation_summary: str,
 ) -> list[dict]:
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
@@ -181,6 +182,24 @@ def _build_blocks(
             "text": {"type": "mrkdwn", "text": _truncate(f"> {guest_message}")},
         },
         {"type": "divider"},
+    ]
+
+    # ---- Optional 2-bullet conversation summary, inserted above history ----
+    summary_text = (conversation_summary or "").strip()
+    if summary_text:
+        blocks.extend([
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": "*CONVERSATION SUMMARY*"}],
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": _truncate(summary_text)},
+            },
+            {"type": "divider"},
+        ])
+
+    blocks.extend([
         # ---- Prior conversation for context ----
         {
             "type": "context",
@@ -209,7 +228,7 @@ def _build_blocks(
                 },
             ],
         },
-    ]
+    ])
 
     return blocks
 
@@ -227,6 +246,7 @@ def post_guest_alert(
     reservation_status: str = "",
     is_repeat_guest: bool = False,
     recent_messages: list[dict] = None,
+    conversation_summary: str = "",
 ) -> dict:
     """Post a Block Kit guest alert to the Slack channel.
 
@@ -255,6 +275,7 @@ def post_guest_alert(
         reservation_status=reservation_status,
         is_repeat_guest=is_repeat_guest,
         recent_messages=recent_messages or [],
+        conversation_summary=conversation_summary,
     )
 
     response = requests.post(
