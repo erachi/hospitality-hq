@@ -20,7 +20,7 @@ import base64
 from config import get_webhook_secret
 from hospitable_client import HospitableClient
 from state_tracker import StateTracker
-from classifier import classify_message, draft_response
+from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
 from handler import load_property_context, build_conversation_summary, _date_only
 from knowledge_base_loader import get_property_name
@@ -169,6 +169,13 @@ def process_webhook_message(
     # Last 5 messages as context in the alert
     recent_messages = messages[-5:] if messages else []
 
+    # 2-bullet Haiku summary of the full thread. Never fail the alert if it errors.
+    try:
+        thread_summary = summarize_conversation(messages, property_name)
+    except Exception as e:
+        logger.warning(f"Conversation summary failed for {reservation_id}: {e}")
+        thread_summary = ""
+
     # Post to Slack
     slack_result = post_guest_alert(
         guest_name=guest_name,
@@ -183,6 +190,7 @@ def process_webhook_message(
         reservation_status=reservation_status,
         is_repeat_guest=False,  # TODO: implement repeat guest detection
         recent_messages=recent_messages,
+        conversation_summary=thread_summary,
     )
 
     if slack_result.get("ok"):

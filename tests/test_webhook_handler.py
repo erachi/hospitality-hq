@@ -58,9 +58,10 @@ def _make_unsigned_webhook_event(payload_dict: dict) -> dict:
 @patch("webhook_handler.HospitableClient")
 @patch("webhook_handler.classify_message")
 @patch("webhook_handler.draft_response")
+@patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_processes_guest_message(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
     dynamodb_table,
 ):
     """Valid webhook with guest message should classify, draft, and post to Slack."""
@@ -120,9 +121,10 @@ def test_webhook_processes_guest_message(
 @patch("webhook_handler.HospitableClient")
 @patch("webhook_handler.classify_message")
 @patch("webhook_handler.draft_response")
+@patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_accepts_without_secret(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
     dynamodb_table,
 ):
     """When no signing secret is configured, webhooks should be accepted without signature."""
@@ -224,9 +226,10 @@ def test_webhook_ignores_non_message_event(mock_secret, dynamodb_table):
 @patch("webhook_handler.HospitableClient")
 @patch("webhook_handler.classify_message")
 @patch("webhook_handler.draft_response")
+@patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_deduplicates(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
     dynamodb_table,
 ):
     """Same webhook delivered twice should only process once."""

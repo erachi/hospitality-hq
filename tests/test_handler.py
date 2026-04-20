@@ -9,14 +9,16 @@ from handler import lambda_handler, build_conversation_summary, load_property_co
 @patch("handler.HospitableClient")
 @patch("handler.classify_message")
 @patch("handler.draft_response")
+@patch("handler.summarize_conversation")
 @patch("handler.post_guest_alert")
 def test_handler_processes_new_guest_messages(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, dynamodb_table
 ):
     """Handler should process new guest messages and post to Slack."""
     # Set up mocks
     mock_client = MagicMock()
     mock_hospitable.return_value = mock_client
+    mock_summary.return_value = "• *Agreed so far:* nothing yet\n• *Still open:* AC broken"
 
     mock_client.get_active_reservations.return_value = [
         {
@@ -73,6 +75,9 @@ def test_handler_processes_new_guest_messages(
     assert call_kwargs["checkin_date"] == "2026-04-20"
     assert call_kwargs["checkout_date"] == "2026-04-25"
     assert call_kwargs["booking_source"] == "airbnb"
+    # Summary pipeline: handler computes and forwards the bullet summary.
+    mock_summary.assert_called_once()
+    assert "Still open" in call_kwargs["conversation_summary"]
 
 
 @mock_aws
@@ -117,9 +122,10 @@ def test_handler_skips_host_messages(mock_hospitable, dynamodb_table):
 @patch("handler.HospitableClient")
 @patch("handler.classify_message")
 @patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
 @patch("handler.post_guest_alert")
 def test_handler_does_not_reprocess_messages(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, dynamodb_table
 ):
     """Handler should skip already-processed messages on second run."""
     mock_client = MagicMock()
@@ -170,9 +176,10 @@ def test_handler_does_not_reprocess_messages(
 @patch("handler.HospitableClient")
 @patch("handler.classify_message")
 @patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
 @patch("handler.post_guest_alert")
 def test_handler_resolves_property_name_from_kb(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, dynamodb_table
 ):
     """When reservation lacks property_name, handler should resolve it from the local KB."""
     mock_client = MagicMock()
@@ -218,9 +225,10 @@ def test_handler_resolves_property_name_from_kb(
 @patch("handler.HospitableClient")
 @patch("handler.classify_message")
 @patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
 @patch("handler.post_guest_alert")
 def test_handler_handles_null_body_without_crashing(
-    mock_slack, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, dynamodb_table
 ):
     """Messages with body=None (attachments, etc.) must not crash the handler."""
     mock_client = MagicMock()
