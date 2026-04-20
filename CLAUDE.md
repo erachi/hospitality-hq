@@ -54,6 +54,10 @@ hospitality_hq/
 │   ├── expense_models.py     # Expense / Allocation dataclasses + helpers
 │   ├── expense_store.py      # S3-backed CRUD for expenses + receipt images
 │   ├── expense_categories.py # Schedule E taxonomy + merchant rule matching
+│   ├── expense_ocr.py        # Claude vision tool-use wrapper for receipts
+│   ├── expense_slack_client.py  # Thin Slack Web API wrapper (expenses)
+│   ├── expense_slack_ui.py   # Block Kit builders — extracted / filed / error
+│   ├── expense_handler.py    # Lambda entry for #expenses file_share events
 │   └── requirements.txt      # Python dependencies
 ├── tests/                    # Test suite (pytest + moto + responses)
 ├── seed/                     # Static config

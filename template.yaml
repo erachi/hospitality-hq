@@ -306,6 +306,61 @@ Resources:
             Prefix: exports/
             ExpirationInDays: 90
 
+  # Ingests receipt photos uploaded to #expenses: downloads the image,
+  # uploads to S3 with Object Lock, runs Claude vision OCR, and posts a
+  # confirmation card in-thread. Interactive components on the card
+  # (button clicks, dropdown changes) are routed separately — not yet
+  # wired up; arriving in a follow-up PR.
+  ExpenseIngestHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-expense-ingest
+      Handler: expense_handler.slack_expenses_handler
+      CodeUri: src/
+      # OCR takes ~3-6s; Slack's 3s ACK deadline is handled by
+      # short-circuiting retries rather than async work.
+      Timeout: 30
+      MemorySize: 512
+      Description: Slack file_share ingest → OCR → S3 → confirmation card
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          EXPENSES_BUCKET: !Ref ExpensesBucket
+          EXPENSES_CHANNEL_ID: !Ref ExpensesChannelId
+          # The handler reads seed/properties.json via TaskStore — it
+          # needs read access to the tasks bucket too.
+          TASKS_BUCKET: !Ref TasksBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ExpensesBucket
+        # Receipts use Object Lock retention; S3CrudPolicy does not grant
+        # PutObjectRetention, so add it explicitly.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObjectRetention
+                - s3:PutObjectLegalHold
+                - s3:GetBucketObjectLockConfiguration
+              Resource:
+                - !Sub "arn:aws:s3:::${ExpensesBucket}"
+                - !Sub "arn:aws:s3:::${ExpensesBucket}/*"
+        - S3ReadPolicy:
+            BucketName: !Ref TasksBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
+      Events:
+        ExpenseEvents:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/expenses/events
+            Method: POST
+
   # Handles all Slack traffic for the task workflow: slash commands,
   # interactive components (buttons + modal submissions), and thread
   # replies as comments.
@@ -756,3 +811,6 @@ Outputs:
   ExpensesBucketName:
     Description: S3 bucket holding expense JSON and receipt images
     Value: !Ref ExpensesBucket
+  ExpensesEventsUrl:
+    Description: Slack Events API Request URL — subscribe message.channels here for #expenses
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/expenses/events"
