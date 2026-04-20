@@ -31,10 +31,17 @@ Response needed:
 - YES if the message contains a question, a request, a problem to resolve, or anything that would feel rude to leave unanswered.
 - NO only for pure thanks/compliments/FYI with no embedded ask. A "thank you, and by the way can you…" still needs a response.
 
+Descriptor:
+- 2-4 words naming WHAT the guest wants or reported, in title case.
+- Action-oriented noun phrase, not a category label.
+- Good: "Early check-in request", "AC not working", "Late checkout request", "Noise complaint", "Thank you note".
+- Bad: "Positive feedback", "General", "Urgent maintenance" (these are categories, not descriptors).
+
 Respond in this exact format (no other text):
 CATEGORY: <category>
 URGENCY: <urgency>
 RESPONSE_NEEDED: <YES|NO>
+DESCRIPTOR: <2-4 word noun phrase>
 SUMMARY: <one-line summary of the issue>"""
 
 
@@ -88,6 +95,7 @@ def classify_message(message_text: str, property_name: str) -> dict:
         "urgency": "MEDIUM",
         "summary": "Guest message",
         "response_needed": True,
+        "descriptor": "Guest Message",
     }
 
     for line in result_text.split("\n"):
@@ -99,6 +107,8 @@ def classify_message(message_text: str, property_name: str) -> dict:
         elif line.startswith("RESPONSE_NEEDED:"):
             value = line.split(":", 1)[1].strip().upper()
             result["response_needed"] = value == "YES"
+        elif line.startswith("DESCRIPTOR:"):
+            result["descriptor"] = line.split(":", 1)[1].strip()
         elif line.startswith("SUMMARY:"):
             result["summary"] = line.split(":", 1)[1].strip()
 
