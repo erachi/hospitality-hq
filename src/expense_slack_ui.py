@@ -22,6 +22,23 @@ BLOCK_PROPERTY = "expense_property_block"
 BLOCK_CATEGORY = "expense_category_block"
 BLOCK_ACTIONS = "expense_actions_block"
 
+# Block ids on selects carry the expense id suffix so the interactions
+# handler can resolve the row — dropdowns don't have a `value` field on
+# the action itself, unlike buttons. Separator is ":" because Slack block
+# ids accept ASCII and we never use ":" in expense ids.
+_ID_SEP = ":"
+
+
+def block_id_with_expense(prefix: str, expense_id: str) -> str:
+    return f"{prefix}{_ID_SEP}{expense_id}"
+
+
+def expense_id_from_block_id(block_id: str) -> str:
+    """Reverse of block_id_with_expense — empty string if not present."""
+    if _ID_SEP not in (block_id or ""):
+        return ""
+    return block_id.split(_ID_SEP, 1)[1]
+
 _LOW_CONFIDENCE_DOT = "🔴 "
 
 
@@ -73,10 +90,12 @@ def build_extracted_card(
         _property_dropdown_block(
             properties=properties,
             selected_id=expense.property_id,
+            expense_id=expense.id,
         ),
         _category_dropdown_block(
             selected_id=expense.category_id,
             low_confidence=category_low,
+            expense_id=expense.id,
         ),
     ]
 
@@ -161,6 +180,39 @@ def build_filed_card(
     return blocks, fallback
 
 
+def build_skipped_card(*, expense: Expense) -> tuple[list[dict], str]:
+    """Replace the confirmation card when the submitter clicks Skip.
+
+    Skipped expenses stay in the store (the receipt image is still
+    under Object Lock) but are marked `is_personal=True` and excluded
+    from year-end Schedule E exports.
+    """
+    lines = [
+        f"*🗑  Skipped {expense.id}* — _personal, not a rental expense._",
+        f"{_escape(expense.merchant_name)} · {expense.transaction_date} · ${expense.total}",
+    ]
+    if expense.notes:
+        lines.append(f"_{_escape(expense.notes)}_")
+
+    blocks: list[dict] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}},
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"submitted by <@{expense.submitter_slack_id}> · "
+                        "receipt kept for 7 years but excluded from Schedule E export"
+                    ),
+                }
+            ],
+        },
+    ]
+    fallback = f"🗑 Skipped {expense.id} · {expense.merchant_name} · ${expense.total}"
+    return blocks, fallback
+
+
 def build_error_card(*, reason: str) -> tuple[list[dict], str]:
     """Posted when ingest fails before an Expense could be persisted."""
     blocks = [
@@ -178,7 +230,9 @@ def build_error_card(*, reason: str) -> tuple[list[dict], str]:
 # ─── Dropdown helpers ────────────────────────────────────────────────────
 
 
-def _property_dropdown_block(*, properties: list[dict], selected_id: Optional[str]) -> dict:
+def _property_dropdown_block(
+    *, properties: list[dict], selected_id: Optional[str], expense_id: str
+) -> dict:
     options = [
         {
             "text": {"type": "plain_text", "text": p.get("name", p.get("id", "?")), "emoji": True},
@@ -202,13 +256,15 @@ def _property_dropdown_block(*, properties: list[dict], selected_id: Optional[st
 
     return {
         "type": "section",
-        "block_id": BLOCK_PROPERTY,
+        "block_id": block_id_with_expense(BLOCK_PROPERTY, expense_id),
         "text": {"type": "mrkdwn", "text": "*Property*"},
         "accessory": element,
     }
 
 
-def _category_dropdown_block(*, selected_id: Optional[str], low_confidence: bool) -> dict:
+def _category_dropdown_block(
+    *, selected_id: Optional[str], low_confidence: bool, expense_id: str
+) -> dict:
     categories = load_categories()
     options = [
         {
@@ -237,7 +293,7 @@ def _category_dropdown_block(*, selected_id: Optional[str], low_confidence: bool
 
     return {
         "type": "section",
-        "block_id": BLOCK_CATEGORY,
+        "block_id": block_id_with_expense(BLOCK_CATEGORY, expense_id),
         "text": {"type": "mrkdwn", "text": label},
         "accessory": element,
     }
