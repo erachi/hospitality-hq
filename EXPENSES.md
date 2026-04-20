@@ -129,108 +129,79 @@ Confidence fields drive the "red dot" UI in §1.
 
 ## 3. Data model
 
-Postgres. Shared `properties` and `users` so the task workflow drops in cleanly.
+**Pivot from the original draft (2026-04-20):** the sibling `/task` workflow shipped with S3+JSON storage, not Postgres, which moots the original "shared `properties` and `users` tables" argument for Postgres. Since tasks can live happily without SQL, expenses will too — at least for MVP. Aggregation (§7) is deferred; if it becomes necessary later, the JSON objects are easy to reload into Postgres or DuckDB for query.
 
-```sql
-create table properties (
-  id            uuid primary key default gen_random_uuid(),
-  display_name  text not null,           -- "The Palm Club"
-  hospitable_id text,                    -- nullable for forward-compat (future non-Hospitable props); both current props have IDs
-  address       text,
-  active        boolean not null default true,
-  created_at    timestamptz not null default now()
-);
+**Storage:** one JSON object per expense in S3 at `expenses/<year>/<id>.json`. Mirrors `task_store.py` conventions. S3 versioning is the free audit trail.
 
-create table users (
-  id            uuid primary key default gen_random_uuid(),
-  slack_user_id text unique not null,
-  display_name  text not null,
-  email         text,
-  role          text check (role in ('owner','manager','handyman','other')),
-  active        boolean not null default true,
-  created_at    timestamptz not null default now()
-);
+```python
+# src/expense_models.py
+@dataclass
+class Expense:
+    id: str                       # "EXP-2026-0042"
+    submitter_slack_id: str       # raw Slack user id; no user table
+    merchant_name: str
+    transaction_date: str         # "YYYY-MM-DD" — the date PRINTED on the receipt
+    total: str                    # decimal as string, e.g. "311.97"
+    currency: str
+    image_s3_key: str
+    image_sha256: str             # for future dedupe (v2)
+    ocr_payload: dict             # raw extract_receipt tool output
+    ocr_model: str
+    slack_channel_id: str
+    slack_thread_ts: str
+    created_at: str               # ISO-8601 UTC with trailing Z
+    updated_at: str
+    # Optional, filled in as user confirms the card:
+    subtotal: Optional[str] = None
+    tax: Optional[str] = None
+    tip: Optional[str] = None
+    category_id: Optional[str] = None           # "repairs", "supplies", ...
+    property_id: Optional[str] = None           # Hospitable UUID — same id space as seed/properties.json
+    payment_method: Optional[str] = None        # freeform
+    notes: Optional[str] = None
+    thumbnail_s3_key: Optional[str] = None
+    ocr_extraction_confidence: Optional[str] = None  # high | medium | low
+    ocr_category_confidence: Optional[str] = None
+    needs_review: bool = False
+    review_reason: Optional[str] = None
+    is_personal: bool = False
+    allocations: list[Allocation] = []           # v2 splits; MVP always [Allocation.single(...)]
 
-create table categories (
-  id               text primary key,              -- "repairs", "supplies", ...
-  display_name     text not null,
-  schedule_e_line  text not null,                 -- "Repairs", "Supplies", ...
-  description      text
-);
-
-create table merchant_patterns (
-  id           bigserial primary key,
-  pattern      text not null,                     -- ILIKE pattern; e.g. 'Home Depot%'
-  category_id  text not null references categories(id),
-  created_by   uuid references users(id),         -- null for seeded rules
-  note         text,
-  created_at   timestamptz not null default now()
-);
-
-create table expenses (
-  id                 text primary key,            -- "EXP-2026-0417" (year-scoped sequence)
-  submitter_id       uuid not null references users(id),
-  merchant_name      text not null,
-  merchant_address   text,
-  transaction_date   date not null,               -- the date PRINTED on the receipt (submitter local)
-  subtotal           numeric(12,2),
-  tax                numeric(12,2),
-  tip                numeric(12,2),
-  total              numeric(12,2) not null,
-  currency           char(3) not null default 'USD',
-  category_id        text references categories(id),
-  payment_method     text,
-  notes              text,
-  image_s3_key       text not null,
-  image_sha256       text not null,               -- for dedupe
-  thumbnail_s3_key   text,
-  ocr_payload        jsonb not null,              -- raw extract_receipt tool call
-  ocr_model          text not null,               -- e.g. "claude-sonnet-4-6"
-  needs_review       boolean not null default false,
-  review_reason      text,
-  is_personal        boolean not null default false,
-  slack_channel_id   text not null,
-  slack_thread_ts    text not null,
-  deleted_at         timestamptz,                 -- soft delete; never hard-delete
-  created_at         timestamptz not null default now(),
-  updated_at         timestamptz not null default now()
-);
-
--- One row per (expense, property). Single-property = 1 row @ 100%.
--- Costco split across two houses = 2 rows summing to the total.
-create table expense_allocations (
-  id            uuid primary key default gen_random_uuid(),
-  expense_id    text not null references expenses(id) on delete cascade,
-  property_id   uuid not null references properties(id),
-  percent       numeric(5,2) not null check (percent > 0 and percent <= 100),
-  amount        numeric(12,2) not null,
-  unique (expense_id, property_id)
-);
-
--- Append-only audit log. Never mutate; insert on every change.
-create table expense_events (
-  id            bigserial primary key,
-  expense_id    text not null references expenses(id),
-  actor_id      uuid references users(id),
-  event_type    text not null,                    -- created, edited, split, marked_personal, soft_deleted
-  before_json   jsonb,
-  after_json    jsonb,
-  created_at    timestamptz not null default now()
-);
-
-create index on expenses (transaction_date);
-create index on expenses (category_id);
-create index on expenses (needs_review) where needs_review;
-create index on expense_allocations (property_id);
+@dataclass
+class Allocation:
+    property_id: str              # Hospitable UUID
+    percent: str                  # decimal string, "100.00" for single-property MVP
+    amount: str                   # decimal string
 ```
 
-**Allocations as a table, not JSON.** "All repair expenses for The Palm Club in 2026" becomes a trivial join. Keeps the expense row the single source of truth for the receipt itself.
+### S3 layout
 
-**Human-readable `id` (`EXP-YYYY-####`).** Humans reference these in Slack and with the accountant. Year-scoped sequence padded to 4 digits. At 400/yr we have four orders of magnitude of headroom.
+```
+s3://hospitality-hq-expenses/
+  expenses/<year>/<id>.json             full metadata
+  receipts/<year>/<id>.<ext>            original image — Object Lock per-object
+  thumbs/<year>/<id>.jpg                1024px preview for Slack
+  exports/<year>/<export_id>.zip        year-end bundle (v2)
+  indexes/slack/<thread_ts>.json        {"expense_id": "EXP-..."}
+```
 
-**`transaction_date` as `date`, not `timestamptz`.** Store the date printed on the receipt in the submitter's local sense, not a timestamp. Avoids silent timezone drift in reports.
+### What we lose vs. Postgres
 
-**`expense_events`** is append-only and referenced by the export bundle (§7) so the audit trail is a first-class citizen.
+- **Aggregation.** "SUM(total) by category by property" is a LIST + parallel GET over the year's expenses, not a SQL query. At <500 expenses/year this is <500ms and acceptable; at 10× that we'd reload into DuckDB or move to Postgres. Year-end export (§7) is where this matters.
+- **Referential integrity.** A category_id typo won't trip a foreign-key check. We guard it with a unit test (`test_expense_categories.test_category_ids_in_merchant_patterns_all_exist`) and application-level validation on write.
+- **No allocations/event tables.** Allocations are a list field on the expense. The "audit log" collapses to S3 object versioning — coarser-grained but free and sufficient.
+
+### What we gain
+
+- **Zero new infra.** S3 bucket only. No Postgres instance, no connection pooling in Lambda, no SSM secret, no VPC plumbing. Same ops story as `/task`.
+- **Debuggability.** `aws s3 cp s3://... - | jq` reads any expense. No psql.
+- **Human-readable `id`** (`EXP-YYYY-####`) derived via a LIST + increment on write. Tiny race window accepted at our volume.
+- **Static seed bundling.** Categories and merchant patterns live in `seed/expense_*.json`, bundled with the Lambda. No config-in-S3 round-trip.
+
+### Properties and submitters
+
+- **Property IDs** are the same Hospitable UUIDs used by the `/task` workflow (see `seed/properties.json`). The expense workflow reads that seed to populate the Slack property dropdown.
+- **Submitters** are identified by raw Slack user ID. No user table, no separate seed. Display names resolved via Slack API if ever rendered.
 
 ---
 
@@ -262,7 +233,9 @@ Thumbnails generated by Pillow on ingest. Cheaper to serve than re-signing origi
 
 ---
 
-## 5. Data store recommendation
+## 5. Data store recommendation — superseded
+
+**Final pick: S3 + JSON** (see §3 for the pivot note). The original comparison below is preserved for historical record.
 
 | Criterion | DynamoDB | Notion | Postgres (Supabase) |
 |---|---|---|---|
@@ -486,7 +459,7 @@ Explicitly **out** of MVP:
 - Mileage tracking for Auto & Travel (separate entity — receipts don't model this).
 - Recurring-expense templates (e.g. monthly Hospitable fee ingested without a receipt photo).
 
-**Ruthlessness check.** The MVP is ~1 new Supabase schema, ~6 Python files under `src/expenses/`, one new SQS queue, one new S3 bucket. That is the two-weekend target. Everything else waits.
+**Ruthlessness check.** The MVP is three Python modules (`expense_models.py`, `expense_store.py`, `expense_categories.py`), two seed JSON files, one S3 bucket, one ingest Lambda, one interactions Lambda. That is the two-weekend target. Everything else waits.
 
 ---
 
@@ -496,7 +469,7 @@ Explicitly **out** of MVP:
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Postgres host | **Supabase** — free tier covers volume; Table Editor gives Maggie the browsable UI |
+| 1 | Data store | **S3 + JSON** — aligned with the `/task` workflow, zero new infra. Pivoted from Supabase after the task workflow shipped on S3, since the "shared tables" argument for Postgres no longer applied. (Original Supabase decision preserved in §5.) |
 | 2 | Channel vs. DM entry point | **`#expenses` channel only for MVP.** DM-to-bot deferred |
 | 3 | Edit rights on a filed expense | **Submitter + VJ + Maggie.** Christin / Asher can file but not edit |
 | 4 | Approval step | **No approval.** Submitter-confirmed card = final write. Monthly summary is the compensating control |
@@ -510,12 +483,12 @@ No open questions remain. Ready to implement §9's MVP scope.
 
 These are cheap now, painful to retrofit:
 
-- **7-year retention.** S3 Object Lock governance mode, 7-year retention on `originals/`. Set at bucket creation; never worry about it again.
+- **7-year retention.** S3 Object Lock enabled at bucket creation; GOVERNANCE retention applied per-object on `receipts/` uploads. Bucket-level default retention deliberately NOT set, so JSON metadata and exports remain mutable.
 - **Original-image preservation.** Never overwrite or re-encode originals. Thumbnails are derivative and live under a different prefix.
-- **Audit log schema from day one.** `expense_events` table created in the MVP migration even if we don't write to it until v2. Retrofitting later is a mess.
-- **No hard deletes.** Soft-delete only (`deleted_at`). IRS audits can ask about voided records.
-- **Human-readable ID embedded in filenames.** The export zip names every receipt with its `EXP-YYYY-####` so the accountant can trace any PDF back to a DB row.
-- **Raw OCR payload stored.** `expenses.ocr_payload jsonb` is non-negotiable. If we ever need to reproduce a categorization decision, the evidence is there.
+- **Audit trail via S3 versioning.** `ExpensesBucket` has versioning enabled — every `put_object` creates a new version; the history is preserved for free. Coarser than a per-field audit log but adequate at our scale.
+- **No hard deletes.** Use `is_personal=True` to exclude from exports; do not delete. S3 versioning retains any removed object for recovery.
+- **Human-readable ID embedded in filenames.** The export zip names every receipt with its `EXP-YYYY-####` so the accountant can trace any PDF back to the JSON.
+- **Raw OCR payload stored.** `Expense.ocr_payload` is non-negotiable. If we ever need to reproduce a categorization decision, the evidence is there.
 - **`transaction_date` = the date printed on the receipt.** Submitter's local day. No silent timezone conversion.
 
 ### Risks
@@ -524,10 +497,10 @@ These are cheap now, painful to retrofit:
 - **Duplicate uploads.** Not blocked in MVP. Monthly summary makes them obvious; v2 dedupes on perceptual hash.
 - **Submitter forgets.** Social problem, not technical. Monthly summary nudges; Maggie can cross-check card statements.
 - **Mixed-use Costco trips.** MVP punt: file the whole receipt and note the personal portion in `notes`. v2 adds Skip + partial-personal. Accountant adjusts if needed.
-- **Slack permalink rot.** If the bot is later removed from the workspace, `slack_permalink` stops resolving. The core record lives in S3 + Postgres, so we keep the receipt; we just lose the thread link. Acceptable.
+- **Slack permalink rot.** If the bot is later removed from the workspace, `slack_permalink` stops resolving. The core record lives in S3, so we keep the receipt; we just lose the thread link. Acceptable.
 - **Mileage / auto expenses.** Not a receipt workflow. Explicitly out of scope; add a dedicated entity in v3.
 - **CPA reclassification.** Borderline items (e.g. a $600 water heater *with labor*) may move between `supplies` and `repairs` at tax time. `notes` is our release valve; don't try to out-think the CPA.
-- **Supabase outage on a submission.** Bot replies "Saved your receipt, extracted OCR; DB write queued — will retry." Image is already in S3 before the DB write; SQS retries take care of the rest.
+- **S3 outage on a submission.** Bot replies with 👀 pre-upload; if the image PUT fails, the card never appears and the submitter sees no confirmation — a visible failure. Retries handled at the Lambda level.
 
 ---
 

@@ -93,3 +93,16 @@ TASKS_BUCKET = os.environ.get("TASKS_BUCKET", "hospitality-hq-tasks")
 # Slack channel where task cards are posted. Separate from the guest-alerts
 # channel so the two workflows don't pollute each other.
 TASKS_CHANNEL_ID = os.environ.get("TASKS_CHANNEL_ID", "")
+
+# ─── Expense-capture workflow ─────────────────────────────────────────────
+# S3 bucket for expense JSON + receipt images + exports. Object Lock
+# enabled at bucket creation; receipts/ prefix gets per-object 7-year
+# retention applied at upload time.
+EXPENSES_BUCKET = os.environ.get("EXPENSES_BUCKET", "hospitality-hq-expenses")
+
+# Slack channel where team members drop receipt photos.
+EXPENSES_CHANNEL_ID = os.environ.get("EXPENSES_CHANNEL_ID", "")
+
+# How long to retain receipt images (days). IRS floor is 7 years; we
+# apply this as Object Lock GOVERNANCE retention on the receipts/ prefix.
+RECEIPT_RETENTION_DAYS = int(os.environ.get("RECEIPT_RETENTION_DAYS", "2555"))

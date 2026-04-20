@@ -1,0 +1,18 @@
+[
+  {"id": "advertising",           "display_name": "Advertising",                 "schedule_e_line": "Advertising"},
+  {"id": "auto_travel",           "display_name": "Auto & Travel",               "schedule_e_line": "Auto and travel"},
+  {"id": "cleaning_maintenance",  "display_name": "Cleaning & Maintenance",      "schedule_e_line": "Cleaning and maintenance"},
+  {"id": "commissions",           "display_name": "Commissions (OTA)",           "schedule_e_line": "Commissions"},
+  {"id": "insurance",             "display_name": "Insurance",                   "schedule_e_line": "Insurance"},
+  {"id": "legal_professional",    "display_name": "Legal & Professional Fees",   "schedule_e_line": "Legal and other professional fees"},
+  {"id": "management_fees",       "display_name": "Management Fees",             "schedule_e_line": "Management fees"},
+  {"id": "mortgage_interest",     "display_name": "Mortgage Interest",           "schedule_e_line": "Mortgage interest paid to banks"},
+  {"id": "other_interest",        "display_name": "Other Interest",              "schedule_e_line": "Other interest"},
+  {"id": "repairs",               "display_name": "Repairs",                     "schedule_e_line": "Repairs"},
+  {"id": "supplies",              "display_name": "Supplies",                    "schedule_e_line": "Supplies"},
+  {"id": "taxes",                 "display_name": "Taxes (property, occupancy)", "schedule_e_line": "Taxes"},
+  {"id": "utilities",             "display_name": "Utilities",                   "schedule_e_line": "Utilities"},
+  {"id": "depreciation",          "display_name": "Depreciation",                "schedule_e_line": "Depreciation"},
+  {"id": "other",                 "display_name": "Other",                       "schedule_e_line": "Other (specify)"},
+  {"id": "personal_skip",         "display_name": "Personal — do not deduct",    "schedule_e_line": "N/A"}
+]
