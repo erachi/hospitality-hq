@@ -48,8 +48,15 @@ def _expense(**overrides) -> Expense:
     return Expense(**defaults)
 
 
-def _find(blocks, block_id):
-    return next((b for b in blocks if b.get("block_id") == block_id), None)
+def _find(blocks, block_id_prefix):
+    """Find a block by block_id prefix — dropdown blocks now suffix the
+    expense id (e.g. `expense_property_block:EXP-2026-0042`), so exact
+    equality no longer works for them."""
+    for b in blocks:
+        bid = b.get("block_id") or ""
+        if bid == block_id_prefix or bid.startswith(block_id_prefix + ":"):
+            return b
+    return None
 
 
 def _actions(blocks):

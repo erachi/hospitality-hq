@@ -95,6 +95,28 @@ def files_info(file_id: str) -> dict:
     return response.json()
 
 
+def post_response_url(response_url: str, payload: dict) -> dict:
+    """Post back to a Slack interaction response_url.
+
+    Slack gives us a 30-minute / 5-call window to update the message
+    that triggered the interaction. Using response_url is simpler than
+    chat.update (no auth headers, no need to store channel + ts).
+
+    Pass `{"replace_original": True, ...}` to update the card in place,
+    or `{"response_type": "ephemeral", ...}` for a private reply.
+    """
+    response = requests.post(
+        response_url,
+        json=payload,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+    )
+    # response_url returns an empty body on success; surface non-2xx as
+    # a structured dict so callers can log consistently.
+    if response.ok:
+        return {"ok": True}
+    return {"ok": False, "status": response.status_code, "text": response.text}
+
+
 def download_file(url: str) -> bytes:
     """Download a private Slack file using the bot token.
 

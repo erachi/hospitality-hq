@@ -1,18 +1,23 @@
 """AWS Lambda handler for the expense-capture workflow.
 
-Subscribes to Slack `message.channels` events. When a file is posted in
-the #expenses channel, we:
+Handles two kinds of Slack traffic from API Gateway:
 
-  1. 👀-react to the original message (so the submitter knows we saw it)
-  2. Download the image
-  3. Upload the original to S3 with Object Lock 7yr retention
-  4. Run Claude vision OCR (tool use → structured JSON)
-  5. Build an Expense with OCR + caption hints, persist it
-  6. Post a confirmation card in-thread with property + category
-     dropdowns and File-it / Split / Skip buttons
+  1. Events  (POST /slack/expenses/events, JSON)
+     - message.channels with subtype=file_share in #expenses
+     - Each image: 👀-react, download, S3 upload with 7-yr Object Lock,
+       Claude vision OCR, persist the Expense, post confirmation card.
 
-Interactions on the card (button clicks, dropdown changes) are the
-subject of the follow-up PR — this handler wires up ingest only.
+  2. Interactive components  (POST /slack/expenses/interactions,
+     form-urlencoded with a "payload" JSON field)
+     - block_actions from the confirmation card:
+         * File it    → mark filed, render filed card in place
+         * Skip       → mark personal, render skipped card
+         * Split      → v2 placeholder, ephemeral reply
+         * Property   → update allocation, re-render card
+         * Category   → update category, re-render card
+
+Card updates go through `response_url` rather than chat.update, so we
+don't need to persist the card's message_ts on the Expense.
 
 Signature verification reuses the Slack v0 scheme from task_handler.
 """
@@ -32,7 +37,11 @@ from config import (
     RECEIPT_RETENTION_DAYS,
     get_slack_signing_secret,
 )
-from expense_categories import suggest_from_merchant, valid_category_ids
+from expense_categories import (
+    get_category,
+    suggest_from_merchant,
+    valid_category_ids,
+)
 from expense_models import (
     Allocation,
     CONFIDENCE_LOW,
@@ -46,8 +55,20 @@ from expense_slack_client import (
     add_reaction,
     download_file,
     post_message,
+    post_response_url,
 )
-from expense_slack_ui import build_error_card, build_extracted_card
+from expense_slack_ui import (
+    ACTION_CATEGORY_SELECT,
+    ACTION_FILE_IT,
+    ACTION_PROPERTY_SELECT,
+    ACTION_SKIP,
+    ACTION_SPLIT,
+    build_error_card,
+    build_extracted_card,
+    build_filed_card,
+    build_skipped_card,
+    expense_id_from_block_id,
+)
 from expense_store import ExpenseStore
 from task_store import TaskStore
 
@@ -90,10 +111,27 @@ def slack_expenses_handler(event, context):
         logger.warning("Invalid Slack signature on expense webhook")
         return {"statusCode": 401, "body": "Invalid signature"}
 
+    content_type = (headers.get("content-type") or "").lower()
+
     try:
+        # Interactive components arrive as form-urlencoded with a
+        # single `payload` field containing JSON.
+        if "application/x-www-form-urlencoded" in content_type:
+            form = _parse_form(raw_body)
+            if "payload" not in form:
+                logger.info("form-urlencoded body without payload field; ignoring")
+                return _ok()
+            payload = json.loads(form["payload"])
+            try:
+                return _route_interaction(payload)
+            except Exception as e:
+                logger.exception(f"Error handling interaction: {e}")
+                return _ok()
+
+        # Otherwise the body is raw JSON from the Events API.
         payload = json.loads(raw_body)
-    except json.JSONDecodeError:
-        logger.info("Non-JSON body on expense events endpoint; ignoring")
+    except (json.JSONDecodeError, ValueError):
+        logger.info("Non-JSON / unparseable body on expenses endpoint; ignoring")
         return _ok()
 
     # Slack URL verification handshake (one-time, on subscription setup).
@@ -425,6 +463,245 @@ def _retention_until_iso() -> str:
     """
     until = datetime.now(timezone.utc) + timedelta(days=RECEIPT_RETENTION_DAYS)
     return until.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+# ─── Interactions (block_actions from the confirmation card) ────────────
+
+
+def _route_interaction(payload: dict) -> dict:
+    """Route an interactive_components payload. Returns the HTTP response."""
+    kind = payload.get("type")
+
+    if kind != "block_actions":
+        logger.info(f"Ignoring interaction type: {kind}")
+        return _ok()
+
+    actions = payload.get("actions") or []
+    if not actions:
+        return _ok()
+
+    # Slack sends one payload per click even though `actions` is a list;
+    # for dropdowns it still contains exactly one element.
+    action = actions[0]
+    action_id = action.get("action_id", "")
+    expense_id = _expense_id_from_action(action)
+    response_url = payload.get("response_url", "")
+    actor_slack_id = (payload.get("user") or {}).get("id", "")
+
+    if not expense_id:
+        logger.warning(f"Interaction {action_id} with no expense id")
+        _ephemeral(response_url, "_Couldn't find the expense id on that button. Try again?_")
+        return _ok()
+
+    store = ExpenseStore()
+    expense = store.get(expense_id)
+    if not expense:
+        logger.warning(f"Interaction {action_id} for unknown expense {expense_id}")
+        _ephemeral(response_url, f"_Expense `{expense_id}` no longer exists._")
+        return _ok()
+
+    try:
+        if action_id == ACTION_FILE_IT:
+            _handle_file_it(expense, store, response_url, actor_slack_id)
+        elif action_id == ACTION_SKIP:
+            _handle_skip(expense, store, response_url, actor_slack_id)
+        elif action_id == ACTION_SPLIT:
+            _handle_split_placeholder(response_url)
+        elif action_id == ACTION_PROPERTY_SELECT:
+            _handle_property_select(expense, store, action, response_url)
+        elif action_id == ACTION_CATEGORY_SELECT:
+            _handle_category_select(expense, store, action, response_url)
+        else:
+            logger.info(f"Unhandled action_id: {action_id}")
+    except Exception as e:
+        logger.exception(f"Interaction {action_id} failed: {e}")
+        _ephemeral(response_url, "_Something went sideways — check the CloudWatch logs._")
+
+    return _ok()
+
+
+def _handle_file_it(
+    expense: Expense, store: ExpenseStore, response_url: str, actor_slack_id: str
+) -> None:
+    """Commit the expense as filed. Clears needs_review.
+
+    If the submitter hasn't picked a property yet, we reject the action
+    with a soft nudge rather than filing an unallocated expense —
+    unallocated rows would silently drop out of per-property exports.
+    """
+    if not expense.property_id:
+        _ephemeral(
+            response_url,
+            "_Pick a property first — I can't file an expense without one._",
+        )
+        return
+
+    expense.needs_review = False
+    expense.review_reason = None
+    expense.is_personal = False
+    _sync_single_allocation(expense)
+    store.put(expense)
+
+    property_name = _property_display_name(expense.property_id)
+    category_name = _category_display_name(expense.category_id)
+    blocks, fallback = build_filed_card(
+        expense=expense,
+        property_display_name=property_name,
+        category_display_name=category_name,
+    )
+    _replace_card(response_url, fallback, blocks)
+
+
+def _handle_skip(
+    expense: Expense, store: ExpenseStore, response_url: str, actor_slack_id: str
+) -> None:
+    """Mark the expense personal and exclude from Schedule E exports."""
+    expense.is_personal = True
+    expense.needs_review = False
+    store.put(expense)
+
+    blocks, fallback = build_skipped_card(expense=expense)
+    _replace_card(response_url, fallback, blocks)
+
+
+def _handle_split_placeholder(response_url: str) -> None:
+    """Splits are v2 — tell the submitter and move on."""
+    _ephemeral(
+        response_url,
+        (
+            "_Splits across properties are coming in v2. For now, pick the "
+            "primary property and note the split in the caption — we'll "
+            "reconcile at tax time._"
+        ),
+    )
+
+
+def _handle_property_select(
+    expense: Expense, store: ExpenseStore, action: dict, response_url: str
+) -> None:
+    """Submitter picked a property from the dropdown. Update and re-render."""
+    selected = _selected_option_value(action)
+    if not selected:
+        return
+    # No-op if the user re-selected the same value Slack posted us.
+    if expense.property_id == selected:
+        return
+
+    expense.property_id = selected
+    _sync_single_allocation(expense)
+    store.put(expense)
+
+    _rerender_extracted_card(expense, response_url)
+
+
+def _handle_category_select(
+    expense: Expense, store: ExpenseStore, action: dict, response_url: str
+) -> None:
+    """Submitter picked a category. Clears the low-confidence flag so
+    the red dot goes away on the re-rendered card."""
+    selected = _selected_option_value(action)
+    if not selected or selected not in valid_category_ids():
+        return
+    if expense.category_id == selected:
+        return
+
+    expense.category_id = selected
+    expense.ocr_category_confidence = None  # user-confirmed, no more red dot
+    store.put(expense)
+
+    _rerender_extracted_card(expense, response_url)
+
+
+# ─── Interaction helpers ─────────────────────────────────────────────────
+
+
+def _rerender_extracted_card(expense: Expense, response_url: str) -> None:
+    properties = TaskStore().load_properties()
+    blocks, fallback = build_extracted_card(expense=expense, properties=properties)
+    _replace_card(response_url, fallback, blocks)
+
+
+def _sync_single_allocation(expense: Expense) -> None:
+    """Keep the single-property allocation in step with property_id + total.
+
+    MVP always runs at 100% against one property. Splits (multiple
+    allocations summing to total) arrive in v2.
+    """
+    if not expense.property_id:
+        expense.allocations = []
+        return
+    expense.allocations = [Allocation.single(expense.property_id, expense.total or "0.00")]
+
+
+def _replace_card(response_url: str, text: str, blocks: list[dict]) -> None:
+    if not response_url:
+        return
+    result = post_response_url(
+        response_url,
+        {
+            "replace_original": True,
+            "text": text,
+            "blocks": blocks,
+        },
+    )
+    if not result.get("ok"):
+        logger.warning(f"response_url replace failed: {result}")
+
+
+def _ephemeral(response_url: str, text: str) -> None:
+    if not response_url:
+        return
+    post_response_url(
+        response_url,
+        {
+            "response_type": "ephemeral",
+            "replace_original": False,
+            "text": text,
+        },
+    )
+
+
+def _expense_id_from_action(action: dict) -> str:
+    """Pull the expense id out of an interaction action.
+
+    Buttons carry it as `value`. Dropdowns can't (their value slot is the
+    selected option) so we embed the id into the `block_id` at render
+    time via `expense_slack_ui.block_id_with_expense`.
+    """
+    value = action.get("value")
+    if value:
+        return value
+    return expense_id_from_block_id(action.get("block_id", ""))
+
+
+def _selected_option_value(action: dict) -> str:
+    """For static_select actions, pull the chosen option's value."""
+    selected = action.get("selected_option") or {}
+    return selected.get("value", "")
+
+
+def _property_display_name(property_id: Optional[str]) -> Optional[str]:
+    if not property_id:
+        return None
+    for p in TaskStore().load_properties():
+        if p.get("id") == property_id:
+            return p.get("name") or property_id
+    return property_id
+
+
+def _category_display_name(category_id: Optional[str]) -> Optional[str]:
+    if not category_id:
+        return None
+    row = get_category(category_id)
+    if row:
+        return row.get("display_name") or category_id
+    return category_id
+
+
+def _parse_form(raw_body: str) -> dict:
+    """Parse an application/x-www-form-urlencoded body into a flat dict."""
+    parsed = parse_qs(raw_body, keep_blank_values=True)
+    return {k: v[0] for k, v in parsed.items()}
 
 
 # ─── Slack signature verification ────────────────────────────────────────

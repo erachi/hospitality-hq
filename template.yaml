@@ -360,6 +360,12 @@ Resources:
             ApiId: !Ref WebhookApi
             Path: /slack/expenses/events
             Method: POST
+        ExpenseInteractions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/expenses/interactions
+            Method: POST
 
   # Handles all Slack traffic for the task workflow: slash commands,
   # interactive components (buttons + modal submissions), and thread
@@ -814,3 +820,6 @@ Outputs:
   ExpensesEventsUrl:
     Description: Slack Events API Request URL — subscribe message.channels here for #expenses
     Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/expenses/events"
+  ExpensesInteractionsUrl:
+    Description: Slack Interactivity Request URL — point the expense app's Interactivity endpoint here
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/prod/slack/expenses/interactions"
