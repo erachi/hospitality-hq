@@ -437,6 +437,100 @@ def test_handle_task_thread_message_ignores_unknown_thread(tasks_bucket):
     handle_task_thread_message(inner)  # should not raise
 
 
+def test_quick_create_from_one_liner(tasks_bucket):
+    """/task <one-liner> should parse and create a task without opening a modal."""
+    from task_handler import slack_tasks_handler
+    from task_store import TaskStore
+    from unittest.mock import patch
+
+    body = urlencode(
+        {
+            "command": "/task",
+            "text": "maggie fix garbage disposal at palm urgent tomorrow",
+            "user_id": "UVJ",
+            "trigger_id": "T",
+        }
+    )
+
+    with patch("task_handler.post_message") as post_mock, patch(
+        "task_handler.dm_user"
+    ) as dm_mock:
+        post_mock.return_value = {"ok": True, "ts": "1700000000.000500", "channel": "C_TEST_TASKS"}
+        dm_mock.return_value = {"ok": True}
+
+        result = slack_tasks_handler(_event(body), None)
+
+    assert result["statusCode"] == 200
+    payload = json.loads(result["body"])
+    assert payload["response_type"] == "ephemeral"
+    assert "Created" in payload["text"]
+
+    store = TaskStore()
+    tasks = store.list_all()
+    assert len(tasks) == 1
+    t = tasks[0]
+    assert t.title == "fix garbage disposal"
+    assert t.assignee_id == "maggie"
+    assert t.property_id == "prop-palm"
+    assert t.priority == "urgent"
+    assert t.due_date is not None
+
+    # Assignee is not the creator → DM should have been sent
+    dm_mock.assert_called_once()
+
+
+def test_quick_create_defaults_when_parse_is_sparse(tasks_bucket):
+    """When only a title is given, use sensible defaults (creator, business-wide, normal)."""
+    from task_handler import slack_tasks_handler
+    from task_store import TaskStore
+    from unittest.mock import patch
+
+    body = urlencode(
+        {
+            "command": "/task",
+            "text": "renew scottsdale str registration",
+            "user_id": "UVJ",
+            "trigger_id": "T",
+        }
+    )
+
+    with patch("task_handler.post_message") as post_mock, patch(
+        "task_handler.dm_user"
+    ) as dm_mock:
+        post_mock.return_value = {"ok": True, "ts": "x", "channel": "C_TEST_TASKS"}
+        dm_mock.return_value = {"ok": True}
+
+        slack_tasks_handler(_event(body), None)
+
+    store = TaskStore()
+    tasks = store.list_all()
+    assert len(tasks) == 1
+    t = tasks[0]
+    assert t.title == "renew scottsdale str registration"
+    # Defaulted to creator (vj) since no assignee was parsed
+    assert t.assignee_id == "vj"
+    # No property match → business-wide
+    assert t.property_id == "business"
+    assert t.priority == "normal"
+
+
+def test_quick_create_refuses_empty_title(tasks_bucket):
+    """If everything parses as metadata, don't create a titleless task."""
+    from task_handler import slack_tasks_handler
+
+    body = urlencode(
+        {
+            "command": "/task",
+            "text": "maggie palm urgent tomorrow",
+            "user_id": "UVJ",
+            "trigger_id": "T",
+        }
+    )
+    result = slack_tasks_handler(_event(body), None)
+    payload = json.loads(result["body"])
+    assert "couldn't find a title" in payload["text"]
+
+
 def test_thread_handler_dispatches_tasks_channel_to_task_handler(
     tasks_bucket, all_thread_tables, ssm_with_secrets
 ):

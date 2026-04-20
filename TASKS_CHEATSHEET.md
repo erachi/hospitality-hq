@@ -7,12 +7,36 @@ Two-minute reference for day-to-day use. Pinned in `#tasks`.
 | Command | What it does |
 |---|---|
 | `/task` | Open the new-task form (title, property, assignee, priority, due date) |
+| `/task <one-liner>` | **Quick create** — parses the sentence and skips the form |
 | `/task mine` | Your open tasks (only you see it) |
 | `/task list` | All open tasks across both properties + business |
 | `/task list palm` | Open tasks for The Palm Club |
 | `/task list villa` | Open tasks for Villa Bougainvillea |
 | `/task list business` | Business-wide tasks (compliance, admin, etc.) |
 | `/task help` | This cheatsheet in Slack |
+
+## Quick create (one-liner)
+
+Type a sentence and the bot figures out the fields. Example:
+
+```
+/task maggie fix garbage disposal at palm urgent tomorrow
+```
+
+Creates: assignee=Maggie, property=Palm, priority=Urgent, due=tomorrow, title="fix garbage disposal".
+
+Recognized words (in any position, at the start or end of the sentence):
+
+| Kind | Words |
+|---|---|
+| Assignee | `vj`, `maggie` |
+| Property | `palm`, `villa`, `business` / `biz` |
+| Priority | `low`, `normal` / `medium`, `high`, `urgent` |
+| Due | `today`, `tomorrow`, `monday`…`friday` (next occurrence), `2026-05-01` (ISO date) |
+
+Anything not recognized stays in the title. Metadata words in the **middle** of the sentence are left alone, so "follow up with low-income tenant" keeps "low" as part of the title.
+
+If the parser can't figure something out, it defaults: assignee → you, property → business-wide, priority → normal. The card posts to `#tasks` immediately and you can tweak with the buttons.
 
 ## Buttons on a task card
 

@@ -47,6 +47,7 @@ from task_models import (
     OPEN_STATUSES,
 )
 from task_store import TaskStore
+from task_parser import parse_quick_create
 from task_slack_client import (
     post_message,
     update_message,
@@ -71,10 +72,17 @@ _MAX_TIMESTAMP_SKEW_SECONDS = 60 * 5
 _HELP_TEXT = (
     "*Task commands*\n"
     "• `/task` — open the create form\n"
+    "• `/task <one-liner>` — quick create, e.g. "
+    "`/task maggie rearrange photos for villa urgent tomorrow`\n"
     "• `/task mine` — your open tasks\n"
     "• `/task list` — all open tasks\n"
     "• `/task list palm` — open tasks for a property (palm, villa, business)\n"
     "• `/task help` — this help\n\n"
+    "*Quick-create recognizes* (in any position, start or end):\n"
+    "• assignee: `vj`, `maggie`\n"
+    "• property: `palm`, `villa`, `business`\n"
+    "• priority: `low`, `normal`/`medium`, `high`, `urgent`\n"
+    "• due: `today`, `tomorrow`, `friday` (next friday), `2026-05-01`\n\n"
     "Reply in a task's thread to leave a comment. Buttons on the card mark done, "
     "start, block, swap assignee, or reopen."
 )
@@ -152,7 +160,8 @@ def _route_slash_command(form: dict) -> dict:
     args = text.split()
     subcommand = args[0].lower() if args else ""
 
-    if subcommand in ("", "new", "create"):
+    # No args → modal. Explicit `new`/`create` with no body → also modal.
+    if not args or (subcommand in ("new", "create") and len(args) == 1):
         _open_create_modal(trigger_id=trigger_id)
         return _ok_ephemeral("Opening the new-task form…")
 
@@ -166,10 +175,12 @@ def _route_slash_command(form: dict) -> dict:
     if subcommand in ("help", "?"):
         return _ok_ephemeral(_HELP_TEXT)
 
-    # Unknown — give the help text rather than silently swallowing.
-    return _ok_ephemeral(
-        f"Didn't recognize `{subcommand}`. Try:\n\n{_HELP_TEXT}"
-    )
+    # Anything else → quick-create from a one-liner. Strip an explicit
+    # `new `/`create ` prefix if the user used it.
+    quick_text = text
+    if subcommand in ("new", "create"):
+        quick_text = " ".join(args[1:])
+    return _quick_create(quick_text=quick_text, user_slack_id=user_id)
 
 
 def _open_create_modal(*, trigger_id: str, prefilled_title: str = "", prefilled_description: str = "") -> None:
@@ -258,6 +269,60 @@ def _match_property(arg: str, properties: list[dict]) -> Optional[dict]:
         if slug.startswith(arg) or name.startswith(arg):
             return p
     return None
+
+
+def _quick_create(*, quick_text: str, user_slack_id: str) -> dict:
+    """Parse a one-liner and create the task directly, no modal.
+
+    Defaults fill in anything we couldn't parse: assignee → creator,
+    property → business-wide, priority → normal, due → none. The user
+    sees the resulting card immediately and can adjust with the buttons.
+    """
+    store = TaskStore()
+    creator = store.get_user_by_slack_id(user_slack_id)
+    if not creator:
+        return _ok_ephemeral(
+            "I don't have you in the users list yet — ask VJ to add your "
+            "Slack id to `seed/users.json` and re-run `setup-tasks.sh`."
+        )
+
+    parsed = parse_quick_create(
+        quick_text,
+        users=store.load_users(),
+        properties=store.load_properties(),
+    )
+
+    title = parsed["title"]
+    if not title:
+        return _ok_ephemeral(
+            "I couldn't find a title in that. Try "
+            "`/task maggie fix disposal at palm urgent` "
+            "or just `/task` for the form."
+        )
+
+    task = Task.new(
+        title=title,
+        description="",
+        property_id=parsed["property_id"] or PROPERTY_BUSINESS,
+        assignee_id=parsed["assignee_id"] or creator["id"],
+        created_by_id=creator["id"],
+        priority=parsed["priority"] or PRIORITY_NORMAL,
+        due_date=parsed["due_date"],
+    )
+    _create_and_announce(task, store)
+
+    # Confirm to the creator what we parsed so they can see any defaults
+    # we filled in (e.g. business-wide when no property matched).
+    summary_parts = [f"*{title}*"]
+    assignee = store.get_user(task.assignee_id) or {}
+    summary_parts.append(f"→ {assignee.get('display_name', task.assignee_id)}")
+    prop = store.get_property(task.property_id) if task.property_id != PROPERTY_BUSINESS else None
+    summary_parts.append(f"at {prop['name']}" if prop else "business-wide")
+    summary_parts.append(f"· {task.priority}")
+    if task.due_date:
+        summary_parts.append(f"· due {task.due_date}")
+    confirmation = "✅ Created: " + " ".join(summary_parts)
+    return _ok_ephemeral(confirmation)
 
 
 # ─── Interactive components ──────────────────────────────────────────────
