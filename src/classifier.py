@@ -51,9 +51,10 @@ Your job is to draft a response to a guest message. The host will review and app
 
 Sources of truth (use in this priority order):
 1. AUTHORITATIVE FACTS from our curated knowledge base — these are ground truth. Cite them exactly; do not contradict or paraphrase into something different.
-2. PAST GUEST Q&A — examples of how similar questions were answered before. Use these as both a style and content guide.
-3. PRECEDENTS — what we've done in similar situations in the past.
-4. Property description and Hospitable Knowledge Hub — supplemental context only, use when the above don't cover the question.
+2. INTERNAL NOTES / ISSUES / RESOLUTIONS — decisions the host team has already made about THIS reservation in prior Slack threads. Honor them: if an issue is marked resolved, treat it as resolved. If there's a note about the guest, incorporate it. Never expose the literal note text to the guest.
+3. PAST GUEST Q&A — examples of how similar questions were answered before. Use these as both a style and content guide.
+4. PRECEDENTS — what we've done in similar situations in the past.
+5. Property description and Hospitable Knowledge Hub — supplemental context only, use when the above don't cover the question.
 
 Guidelines:
 - Be warm, friendly, and genuinely helpful
@@ -176,6 +177,7 @@ def draft_response(
     classification: dict,
     conversation_history: str = "",
     local_kb_context: str = "",
+    thread_logs_context: str = "",
 ) -> str:
     """Draft a response to a guest message using Claude Sonnet.
 
@@ -183,6 +185,10 @@ def draft_response(
 
     The local KB context (already formatted by knowledge_base_loader.format_for_claude)
     is the highest-priority source and is placed prominently in the prompt.
+
+    thread_logs_context (if provided) contains prior internal notes, issues, or
+    resolutions logged by the host team in Slack threads on THIS reservation.
+    It gives the draft memory of what's already been discussed or fixed.
     """
     header = f"""Property: {property_name}
 Guest: {guest_name}
@@ -196,6 +202,11 @@ Issue summary: {classification['summary']}"""
     # Local KB — highest priority. Included first so Claude anchors on it.
     if local_kb_context.strip():
         sections.append(local_kb_context[:6000])
+
+    # Prior internal notes/issues/resolutions for this reservation —
+    # high priority because they reflect decisions already made.
+    if thread_logs_context.strip():
+        sections.append(thread_logs_context[:3000])
 
     # Hospitable's structured Knowledge Hub — supplemental
     if knowledge_hub_context.strip():

@@ -14,6 +14,8 @@ os.environ["SSM_PREFIX"] = "/hospitality-hq-test"
 os.environ["SLACK_CHANNEL_ID"] = "C_TEST_CHANNEL"
 os.environ["PROPERTY_UUIDS"] = "test-prop-uuid-1,test-prop-uuid-2"
 os.environ["DYNAMODB_TABLE"] = "hospitality-hq-messages-test"
+os.environ["THREAD_MAPPING_TABLE"] = "hospitality-hq-thread-mapping-test"
+os.environ["THREAD_LOGS_TABLE"] = "hospitality-hq-thread-logs-test"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
@@ -63,6 +65,83 @@ def dynamodb_table():
         )
         table.wait_until_exists()
         yield table
+
+
+@pytest.fixture
+def thread_mapping_table():
+    """Mock DynamoDB thread mapping table."""
+    with mock_aws():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName="hospitality-hq-thread-mapping-test",
+            KeySchema=[{"AttributeName": "thread_ts", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "thread_ts", "AttributeType": "S"}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+        yield table
+
+
+@pytest.fixture
+def thread_logs_table():
+    """Mock DynamoDB thread logs table."""
+    with mock_aws():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName="hospitality-hq-thread-logs-test",
+            KeySchema=[
+                {"AttributeName": "reservation_uuid", "KeyType": "HASH"},
+                {"AttributeName": "log_id", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "reservation_uuid", "AttributeType": "S"},
+                {"AttributeName": "log_id", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+        yield table
+
+
+@pytest.fixture
+def all_thread_tables():
+    """Create all tables needed by the thread handler (messages + mapping + logs)."""
+    with mock_aws():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        messages = dynamodb.create_table(
+            TableName="hospitality-hq-messages-test",
+            KeySchema=[
+                {"AttributeName": "reservation_uuid", "KeyType": "HASH"},
+                {"AttributeName": "message_id", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "reservation_uuid", "AttributeType": "S"},
+                {"AttributeName": "message_id", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        mapping = dynamodb.create_table(
+            TableName="hospitality-hq-thread-mapping-test",
+            KeySchema=[{"AttributeName": "thread_ts", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "thread_ts", "AttributeType": "S"}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        logs = dynamodb.create_table(
+            TableName="hospitality-hq-thread-logs-test",
+            KeySchema=[
+                {"AttributeName": "reservation_uuid", "KeyType": "HASH"},
+                {"AttributeName": "log_id", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "reservation_uuid", "AttributeType": "S"},
+                {"AttributeName": "log_id", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        messages.wait_until_exists()
+        mapping.wait_until_exists()
+        logs.wait_until_exists()
+        yield {"messages": messages, "mapping": mapping, "logs": logs}
 
 
 @pytest.fixture

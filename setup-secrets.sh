@@ -3,7 +3,8 @@
 # Hospitality HQ — Store secrets in AWS SSM Parameter Store
 #
 # Usage:
-#   ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token> [webhook-signing-secret]
+#   ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token> \
+#                      [webhook-signing-secret] [slack-signing-secret]
 # ============================================================
 
 set -e
@@ -11,15 +12,14 @@ set -e
 PREFIX="/hospitality-hq"
 REGION="us-east-1"
 
-if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
-    echo "Usage: ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token> [webhook-signing-secret]"
+if [ "$#" -lt 3 ] || [ "$#" -gt 5 ]; then
+    echo "Usage: ./setup-secrets.sh <hospitable-token> <claude-api-key> <slack-bot-token> [webhook-signing-secret] [slack-signing-secret]"
     exit 1
 fi
 
 TOTAL=3
-if [ -n "$4" ]; then
-    TOTAL=4
-fi
+[ -n "$4" ] && TOTAL=$((TOTAL + 1))
+[ -n "$5" ] && TOTAL=$((TOTAL + 1))
 
 echo "Storing secrets in SSM Parameter Store..."
 
@@ -50,7 +50,9 @@ aws ssm put-parameter \
   --no-cli-pager > /dev/null
 echo "  3/${TOTAL} Slack bot token stored"
 
+COUNT=3
 if [ -n "$4" ]; then
+    COUNT=$((COUNT + 1))
     aws ssm put-parameter \
       --name "${PREFIX}/webhook-signing-secret" \
       --type SecureString \
@@ -58,7 +60,19 @@ if [ -n "$4" ]; then
       --overwrite \
       --region "${REGION}" \
       --no-cli-pager > /dev/null
-    echo "  4/${TOTAL} Webhook signing secret stored"
+    echo "  ${COUNT}/${TOTAL} Webhook signing secret stored"
+fi
+
+if [ -n "$5" ]; then
+    COUNT=$((COUNT + 1))
+    aws ssm put-parameter \
+      --name "${PREFIX}/slack-signing-secret" \
+      --type SecureString \
+      --value "$5" \
+      --overwrite \
+      --region "${REGION}" \
+      --no-cli-pager > /dev/null
+    echo "  ${COUNT}/${TOTAL} Slack signing secret stored"
 fi
 
 echo ""
