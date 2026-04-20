@@ -24,6 +24,8 @@ from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
 from handler import load_property_context, build_conversation_summary, _date_only
 from knowledge_base_loader import get_property_name
+from thread_mapping import ThreadMapping
+from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -153,12 +155,23 @@ def process_webhook_message(
         f"Classified webhook message: {classification['category']} / {classification['urgency']}"
     )
 
+    # Load prior internal notes/issues for this reservation so Claude has memory
+    # of what's already been discussed or fixed in previous alert threads.
+    try:
+        prior_logs = ThreadLogs().get_logs(reservation_id)
+    except Exception as e:
+        logger.warning(f"Could not load thread logs for {reservation_id}: {e}")
+        prior_logs = []
+    thread_logs_context = format_thread_logs(prior_logs)
+
     # Draft response
     draft = draft_response(
         message_text=msg_text,
         property_name=property_name,
         property_description=prop_context.get("description", ""),
         knowledge_hub_context=prop_context.get("knowledge_hub", ""),
+        local_kb_context=prop_context.get("local_kb", ""),
+        thread_logs_context=thread_logs_context,
         guest_name=guest_name,
         checkin_date=checkin,
         checkout_date=checkout,
@@ -195,6 +208,20 @@ def process_webhook_message(
 
     if slack_result.get("ok"):
         logger.info(f"Posted Slack alert for webhook {webhook_id}")
+
+        # Record thread mapping so future thread replies can be routed back here.
+        try:
+            thread_ts = slack_result.get("ts") or slack_result.get("message", {}).get("ts")
+            if thread_ts:
+                ThreadMapping().put_mapping(
+                    thread_ts=thread_ts,
+                    reservation_uuid=reservation_id,
+                    property_id=property_id,
+                    property_name=property_name,
+                    guest_name=guest_name,
+                )
+        except Exception as e:
+            logger.warning(f"Could not save thread mapping for webhook {webhook_id}: {e}")
     else:
         logger.error(f"Slack post failed: {slack_result.get('error', 'unknown')}")
 

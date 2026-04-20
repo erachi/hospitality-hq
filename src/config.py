@@ -56,6 +56,10 @@ def get_slack_bot_token() -> str:
 def get_webhook_secret() -> str:
     return _get_secret("webhook-signing-secret")
 
+@lru_cache(maxsize=1)
+def get_slack_signing_secret() -> str:
+    return _get_secret("slack-signing-secret")
+
 
 # --- Non-secret config (environment variables) ---
 
@@ -75,6 +79,8 @@ PROPERTY_UUIDS = [
 ]
 
 DYNAMODB_TABLE = os.environ.get("DYNAMODB_TABLE", "hospitality-hq-messages")
+THREAD_MAPPING_TABLE = os.environ.get("THREAD_MAPPING_TABLE", "hospitality-hq-thread-mapping")
+THREAD_LOGS_TABLE = os.environ.get("THREAD_LOGS_TABLE", "hospitality-hq-thread-logs")
 
 # Monitoring settings
 RESERVATION_LOOKBACK_DAYS = 3

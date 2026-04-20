@@ -55,9 +55,15 @@ Resources:
           SLACK_CHANNEL_ID: !Ref SlackChannelId
           PROPERTY_UUIDS: !Ref PropertyUuids
           DYNAMODB_TABLE: !Ref MessagesTable
+          THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
+          THREAD_LOGS_TABLE: !Ref ThreadLogsTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ThreadMappingTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ThreadLogsTable
         # NOTE: We build the SSM ARN explicitly instead of using SAM's
         # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
         # ParameterName, so a ParameterName that starts with "/" (like
@@ -91,9 +97,15 @@ Resources:
           SLACK_CHANNEL_ID: !Ref SlackChannelId
           PROPERTY_UUIDS: !Ref PropertyUuids
           DYNAMODB_TABLE: !Ref MessagesTable
+          THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
+          THREAD_LOGS_TABLE: !Ref ThreadLogsTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ThreadMappingTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ThreadLogsTable
         # NOTE: We build the SSM ARN explicitly instead of using SAM's
         # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
         # ParameterName, so a ParameterName that starts with "/" (like
@@ -132,6 +144,82 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  # ═══════════════════════════════════════════════════════════════
+  # Slack thread interactions: in-thread Q&A + note/issue/resolution logs
+  # ═══════════════════════════════════════════════════════════════
+
+  # Maps Slack thread_ts → reservation context. Written by the alert posters
+  # (monitor + webhook), read by the thread event handler.
+  ThreadMappingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: hospitality-hq-thread-mapping
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: thread_ts
+          AttributeType: S
+      KeySchema:
+        - AttributeName: thread_ts
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # Stores notes/issues/resolutions scoped to a reservation. Read by draft_response
+  # and by the Q&A path so prior context informs future replies.
+  ThreadLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: hospitality-hq-thread-logs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reservation_uuid
+          AttributeType: S
+        - AttributeName: log_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reservation_uuid
+          KeyType: HASH
+        - AttributeName: log_id
+          KeyType: RANGE
+
+  # Receives Slack Events API callbacks for in-thread replies.
+  ThreadEventHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-slack-events
+      Handler: thread_handler.slack_events_handler
+      CodeUri: src/
+      Timeout: 15  # Slack retries after 3s; keep handler tight
+      Description: Processes Slack thread replies (Q&A, notes, issues, resolutions)
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          SLACK_CHANNEL_ID: !Ref SlackChannelId
+          PROPERTY_UUIDS: !Ref PropertyUuids
+          THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
+          THREAD_LOGS_TABLE: !Ref ThreadLogsTable
+          DYNAMODB_TABLE: !Ref MessagesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ThreadMappingTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ThreadLogsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
+      Events:
+        SlackEvents:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/events
+            Method: POST
 
   # ═══════════════════════════════════════════════════════════════
   # Observability: SNS topic → Email + Slack alarm handler

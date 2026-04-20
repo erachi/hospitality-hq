@@ -294,3 +294,27 @@ def post_guest_alert(
     )
 
     return response.json()
+
+
+def post_thread_reply(thread_ts: str, text: str, channel: str | None = None) -> dict:
+    """Post a plain-text reply in an existing Slack thread.
+
+    Used by the thread event handler to answer questions or confirm note/issue
+    saves. Keeps formatting simple (markdown via Slack's mrkdwn) — rich Block Kit
+    is reserved for the initial alert.
+    """
+    response = requests.post(
+        "https://slack.com/api/chat.postMessage",
+        headers={
+            "Authorization": f"Bearer {get_slack_bot_token()}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "channel": channel or SLACK_CHANNEL_ID,
+            "thread_ts": thread_ts,
+            "text": text,
+            "unfurl_links": False,
+            "unfurl_media": False,
+        },
+    )
+    return response.json()

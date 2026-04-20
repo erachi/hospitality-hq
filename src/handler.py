@@ -17,6 +17,8 @@ from state_tracker import StateTracker
 from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
 from knowledge_base_loader import load_kb, format_for_claude, get_property_name
+from thread_mapping import ThreadMapping
+from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -169,6 +171,16 @@ def process_reservation(
             f"Classified message {msg_id}: {classification['category']} / {classification['urgency']}"
         )
 
+        # Load any internal notes/issues/resolutions logged in prior alert
+        # threads for this reservation — gives Claude memory of what's
+        # already been discussed or fixed.
+        try:
+            prior_logs = ThreadLogs().get_logs(res_uuid)
+        except Exception as e:
+            logger.warning(f"Could not load thread logs for {res_uuid}: {e}")
+            prior_logs = []
+        thread_logs_context = format_thread_logs(prior_logs)
+
         # Draft a response
         draft = draft_response(
             message_text=msg_text,
@@ -176,6 +188,7 @@ def process_reservation(
             property_description=prop_context.get("description", ""),
             knowledge_hub_context=prop_context.get("knowledge_hub", ""),
             local_kb_context=prop_context.get("local_kb", ""),
+            thread_logs_context=thread_logs_context,
             guest_name=guest_name,
             checkin_date=checkin,
             checkout_date=checkout,
@@ -215,6 +228,23 @@ def process_reservation(
         if slack_result.get("ok"):
             stats["alerts_posted"] += 1
             logger.info(f"Posted Slack alert for message {msg_id}")
+
+            # Record the Slack thread timestamp so future thread replies can be
+            # routed back to this reservation. Failure here must not block the
+            # alert flow — it just means thread interactions won't work for
+            # this specific alert.
+            try:
+                thread_ts = slack_result.get("ts") or slack_result.get("message", {}).get("ts")
+                if thread_ts:
+                    ThreadMapping().put_mapping(
+                        thread_ts=thread_ts,
+                        reservation_uuid=res_uuid,
+                        property_id=property_id,
+                        property_name=property_name,
+                        guest_name=guest_name,
+                    )
+            except Exception as e:
+                logger.warning(f"Could not save thread mapping for message {msg_id}: {e}")
         else:
             logger.error(f"Slack post failed: {slack_result.get('error', 'unknown')}")
 
