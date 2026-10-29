@@ -218,6 +218,7 @@ def process_webhook_message(
         is_repeat_guest=False,  # TODO: implement repeat guest detection
         recent_messages=recent_messages,
         conversation_summary=thread_summary,
+        message_timestamp=data.get("created_at", ""),
     )
 
     if slack_result.get("ok"):
