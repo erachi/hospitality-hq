@@ -1,8 +1,55 @@
 """DynamoDB-backed state tracker for processed messages."""
 
-import boto3
+import hashlib
 from datetime import datetime, timezone
+
+import boto3
+
 from config import DYNAMODB_TABLE
+
+
+def _normalize_iso(ts: str) -> str:
+    """Normalize an ISO-8601 timestamp to UTC at second precision.
+
+    Returns the input unchanged if it can't be parsed, so a weird-but-stable
+    timestamp still produces a stable dedup key.
+    """
+    if not ts:
+        return ""
+    try:
+        s = ts
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (ValueError, TypeError):
+        return ts
+
+
+def message_dedup_key(reservation_id: str, msg: dict) -> str:
+    """Shared dedup key for a guest message.
+
+    Produced identically from the Hospitable `message.created` webhook `data`
+    object and from a message dict returned by `GET /reservations/{id}/messages`,
+    so the webhook path and the hourly poller mark and detect the same key.
+
+    The webhook payload's top-level `id` is the *webhook event id*, not a
+    message id, so we don't use it. The key is derived from fields both
+    payloads carry: `created_at` normalized to UTC at second precision, plus
+    a truncated sha256 of the stripped body.
+
+    `reservation_id` is accepted for symmetry with the StateTracker API and
+    for log context; it is the DynamoDB partition key and isn't folded into
+    the returned sort key.
+    """
+    created_at = _normalize_iso(msg.get("created_at", ""))
+    body = (msg.get("body") or "").strip()
+    body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+    return f"ts:{created_at}#b:{body_hash}"
 
 
 class StateTracker:

@@ -1,7 +1,9 @@
 """AWS Lambda handler for Hospitality HQ guest monitoring.
 
-Runs every 15 minutes via EventBridge. Polls Hospitable for new guest
-messages, classifies issues, drafts responses, and posts to Slack.
+Runs hourly via EventBridge as a safety-net behind the real-time webhook.
+Polls Hospitable for new guest messages, classifies issues, drafts responses,
+and posts to Slack. The webhook handles most alerts in real time; this
+poller only catches webhook deliveries that failed or were missed.
 
 CRITICAL: Never sends messages to guests. All responses are drafts
 for VJ or Maggie to review and send manually.
@@ -9,11 +11,13 @@ for VJ or Maggie to review and send manually.
 
 import json
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from config import PROPERTY_UUIDS
 from hospitable_client import HospitableClient
-from state_tracker import StateTracker
+from state_tracker import StateTracker, message_dedup_key
 from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
 from knowledge_base_loader import load_kb, format_for_claude, get_property_name
@@ -29,6 +33,39 @@ def _date_only(value: str) -> str:
     if not value:
         return ""
     return value.split("T", 1)[0]
+
+
+def _parse_iso(ts: str) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp to a UTC-aware datetime, or None."""
+    if not ts:
+        return None
+    try:
+        s = ts
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _get_lookback_hours() -> int:
+    """How far back the safety-net poll looks. Env-overridable for tests.
+
+    Guard against two things:
+      1. First run after deploy re-alerting a flood of old messages.
+      2. Any lingering noise from truly stale conversations.
+
+    Six hours comfortably covers the hourly schedule's own lag plus any
+    short webhook outage; longer outages are rare and the operator can
+    bump this knob.
+    """
+    try:
+        return int(os.environ.get("POLLER_LOOKBACK_HOURS", "6"))
+    except (TypeError, ValueError):
+        return 6
 
 
 def lambda_handler(event, context):
@@ -125,16 +162,48 @@ def process_reservation(
     if not messages:
         return
 
-    # Filter to only guest messages (not host or automated)
-    new_guest_messages = []
-    for msg in messages:
-        msg_id = str(msg.get("id", ""))
-        source = msg.get("source", "")
-        sender_type = msg.get("sender_type", "")
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=_get_lookback_hours())
 
-        # Only process guest messages that haven't been seen
-        if sender_type == "guest" and not tracker.is_message_processed(res_uuid, msg_id):
-            new_guest_messages.append(msg)
+    # Hospitable returns messages chronologically (oldest first), so a later
+    # index is a later message in the conversation.
+    #
+    # For each candidate guest message:
+    #   1. Skip if outside the lookback window.
+    #   2. Skip if the shared dedup key is already marked (either by the
+    #      webhook path or by a prior poll run).
+    #   3. If any later message in the conversation is a non-automated host
+    #      reply, treat the guest message as already answered: mark it so we
+    #      don't re-check it next hour, but do not post a Slack alert.
+    new_guest_messages = []
+    for i, msg in enumerate(messages):
+        if msg.get("sender_type") != "guest":
+            continue
+
+        created_at = _parse_iso(msg.get("created_at", ""))
+        if created_at is None or created_at < cutoff:
+            continue
+
+        dedup_key = message_dedup_key(res_uuid, msg)
+        if tracker.is_message_processed(res_uuid, dedup_key):
+            continue
+
+        # Automated host messages (welcome notes, checkout reminders) don't
+        # count — they aren't a human reply to the guest's issue.
+        has_host_reply = any(
+            later.get("sender_type") == "host" and later.get("source") != "automated"
+            for later in messages[i + 1 :]
+        )
+        if has_host_reply:
+            logger.info(
+                f"Skipping guest message in {res_uuid} — already answered by host "
+                f"(dedup_key={dedup_key})"
+            )
+            tracker.mark_message_processed(
+                res_uuid, dedup_key, "ANSWERED", "LOW", property_name
+            )
+            continue
+
+        new_guest_messages.append((msg, dedup_key))
 
     if not new_guest_messages:
         return
@@ -154,7 +223,7 @@ def process_reservation(
     conversation_history = build_conversation_summary(messages)
 
     # Process each new guest message
-    for msg in new_guest_messages:
+    for msg, dedup_key in new_guest_messages:
         msg_id = str(msg.get("id", ""))
         # Hospitable can return body: null for non-text messages (e.g. attachments)
         msg_text = msg.get("body") or ""
@@ -162,7 +231,7 @@ def process_reservation(
 
         if not msg_text.strip():
             # Skip empty messages, mark as processed
-            tracker.mark_message_processed(res_uuid, msg_id, "EMPTY", "LOW", property_name)
+            tracker.mark_message_processed(res_uuid, dedup_key, "EMPTY", "LOW", property_name)
             continue
 
         # Classify the message
@@ -250,7 +319,7 @@ def process_reservation(
 
         # Mark as processed regardless (to avoid re-posting on failure)
         tracker.mark_message_processed(
-            res_uuid, msg_id, classification["category"], classification["urgency"], property_name
+            res_uuid, dedup_key, classification["category"], classification["urgency"], property_name
         )
 
 

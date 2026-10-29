@@ -23,6 +23,11 @@ os.environ["EXPENSES_CHANNEL_ID"] = "C_TEST_EXPENSES"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+# Many existing tests use message created_at timestamps baked in at fixture-
+# write time (e.g. "2026-04-20T22:00:00Z"). The poller's new lookback window
+# would exclude those by default; set a wide window so legacy tests keep
+# passing. Lookback-specific tests override this via monkeypatch.
+os.environ.setdefault("POLLER_LOOKBACK_HOURS", "87600")  # ~10 years
 
 
 @pytest.fixture

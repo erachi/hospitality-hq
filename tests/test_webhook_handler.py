@@ -273,6 +273,140 @@ def test_webhook_deduplicates(
     mock_slack.assert_not_called()
 
 
+@mock_aws
+@patch("webhook_handler.get_webhook_secret", return_value="")
+@patch("webhook_handler.HospitableClient")
+@patch("webhook_handler.classify_message")
+@patch("webhook_handler.draft_response")
+@patch("webhook_handler.summarize_conversation", return_value="")
+@patch("webhook_handler.post_guest_alert")
+def test_webhook_error_does_not_mark_processed(
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    dynamodb_table,
+):
+    """A transient error inside the pipeline must NOT mark the message as
+    processed — the hourly safety-net poll needs to be able to retry it."""
+    from state_tracker import StateTracker, message_dedup_key
+
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+    # Simulate a transient Hospitable outage during enrichment.
+    mock_client.get_reservation_detail.side_effect = RuntimeError("hospitable 500")
+
+    event = _make_unsigned_webhook_event(SAMPLE_WEBHOOK_PAYLOAD)
+    result = webhook_handler(event, None)
+
+    # Return 200 so Hospitable doesn't retry on a transient error, but
+    # content signals the failure.
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["status"] == "error"
+
+    # Critically: the DynamoDB row must NOT exist, so the poll can retry.
+    tracker = StateTracker()
+    dedup_key = message_dedup_key(
+        SAMPLE_WEBHOOK_PAYLOAD["data"]["reservation_id"],
+        SAMPLE_WEBHOOK_PAYLOAD["data"],
+    )
+    assert tracker.is_message_processed(
+        SAMPLE_WEBHOOK_PAYLOAD["data"]["reservation_id"], dedup_key
+    ) is False
+
+
+@mock_aws
+@patch("webhook_handler.get_webhook_secret", return_value="")
+@patch("webhook_handler.HospitableClient")
+@patch("webhook_handler.classify_message")
+@patch("webhook_handler.draft_response")
+@patch("webhook_handler.summarize_conversation", return_value="")
+@patch("webhook_handler.post_guest_alert")
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
+@patch("handler.post_guest_alert")
+def test_webhook_then_poller_posts_exactly_one_alert(
+    mock_poll_slack,
+    mock_poll_summary,
+    mock_poll_draft,
+    mock_poll_classify,
+    mock_poll_hospitable,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_secret,
+    dynamodb_table,
+):
+    """Regression guard for the duplicate-alert bug:
+    the webhook processes a message, then the hourly poller sees the SAME
+    message in the API conversation history, and must dedupe to zero new
+    alerts. Previously, the webhook keyed by webhook_event_id and the poller
+    keyed by API message_id — different rows, so the poller re-alerted."""
+    from handler import lambda_handler
+
+    # ─── Webhook side ───
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+    mock_client.get_reservation_detail.return_value = {
+        "id": "res-uuid-123",
+        "platform": "airbnb",
+        "status": "accepted",
+        "check_in": "2026-04-20T16:00:00-07:00",
+        "check_out": "2026-04-25T11:00:00-07:00",
+        "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        "properties": [{"id": "prop-1", "name": "Villa Bougainvillea"}],
+    }
+    mock_client.get_reservation_messages.return_value = []
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+    mock_classify.return_value = {"category": "URGENT", "urgency": "HIGH", "summary": "x"}
+    mock_draft.return_value = "Draft"
+    mock_slack.return_value = {"ok": True}
+
+    event = _make_unsigned_webhook_event(SAMPLE_WEBHOOK_PAYLOAD)
+    webhook_result = webhook_handler(event, None)
+    assert json.loads(webhook_result["body"])["status"] == "processed"
+    assert mock_slack.call_count == 1
+
+    # ─── Poller side: same conversation, same message as an API object ───
+    # The API form carries an `id` but the webhook form didn't. The shared
+    # dedup key must still match.
+    api_msg = {
+        "id": "msg-abc-999",
+        "body": SAMPLE_WEBHOOK_PAYLOAD["data"]["body"],
+        "sender_type": "guest",
+        "source": "platform",
+        "created_at": SAMPLE_WEBHOOK_PAYLOAD["data"]["created_at"],
+    }
+    mock_poll_client = MagicMock()
+    mock_poll_hospitable.return_value = mock_poll_client
+    mock_poll_client.get_active_reservations.return_value = [
+        {
+            "id": "res-uuid-123",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_poll_client.get_reservation_messages.return_value = [api_msg]
+    mock_poll_client.get_property.return_value = {"description": "desc"}
+    mock_poll_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    poll_result = lambda_handler({}, None)
+    poll_body = json.loads(poll_result["body"])
+
+    # Zero new alerts from the poller — the webhook already handled it.
+    assert poll_body["alerts_posted"] == 0
+    assert poll_body["new_messages_found"] == 0
+    mock_poll_slack.assert_not_called()
+
+
 def test_verify_signature_valid():
     """Known secret + body should produce matching HMAC."""
     secret = "my-secret"

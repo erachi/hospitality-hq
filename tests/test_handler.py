@@ -1,5 +1,6 @@
 """Tests for the main Lambda handler orchestration logic."""
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 from moto import mock_aws
 from handler import lambda_handler, build_conversation_summary, load_property_context
@@ -275,6 +276,219 @@ def test_handler_handles_null_body_without_crashing(
     body = _json.loads(result["body"])
     assert body["errors"] == []
     # Real message posts to Slack; attachment is marked as empty + skipped
+    assert body["alerts_posted"] == 1
+
+
+@mock_aws
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
+@patch("handler.post_guest_alert")
+def test_poller_skips_message_with_later_host_reply(
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+):
+    """If the host has already replied to a guest message, the poller must
+    not alert on it. Covers the common race where VJ or Maggie replies in
+    the Hospitable app faster than the hourly poll runs."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-123",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    # Oldest → newest. Guest asks, then host replies manually.
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-guest",
+            "body": "The AC is broken",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": "2026-04-20T22:00:00Z",
+        },
+        {
+            "id": "msg-host",
+            "body": "Technician coming at 4pm",
+            "sender_type": "host",
+            "source": "manual",
+            "created_at": "2026-04-20T22:30:00Z",
+        },
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    result = lambda_handler({}, None)
+
+    import json as _json
+    body = _json.loads(result["body"])
+    assert body["new_messages_found"] == 0
+    assert body["alerts_posted"] == 0
+    mock_slack.assert_not_called()
+
+
+@mock_aws
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
+@patch("handler.post_guest_alert")
+def test_poller_still_alerts_when_only_automated_host_reply(
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, dynamodb_table
+):
+    """An automated welcome / checkout message isn't a human reply, so the
+    poller should still surface the guest message for VJ/Maggie to look at."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-123",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-guest",
+            "body": "The AC is broken",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": "2026-04-20T22:00:00Z",
+        },
+        {
+            "id": "msg-auto",
+            "body": "Thanks for staying with us!",
+            "sender_type": "host",
+            "source": "automated",
+            "created_at": "2026-04-20T22:01:00Z",
+        },
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+    mock_classify.return_value = {"category": "URGENT_MAINTENANCE", "urgency": "HIGH", "summary": "AC"}
+    mock_draft.return_value = "Draft"
+    mock_slack.return_value = {"ok": True}
+
+    result = lambda_handler({}, None)
+    import json as _json
+    body = _json.loads(result["body"])
+    assert body["alerts_posted"] == 1
+
+
+@mock_aws
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
+@patch("handler.post_guest_alert")
+def test_poller_ignores_messages_older_than_lookback_window(
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable,
+    dynamodb_table, monkeypatch,
+):
+    """The lookback guard prevents a flood of alerts on the first poll after
+    deploy. A message older than POLLER_LOOKBACK_HOURS is left alone."""
+    monkeypatch.setenv("POLLER_LOOKBACK_HOURS", "6")
+
+    now = datetime.now(timezone.utc)
+    old_ts = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-123",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-stale",
+            "body": "A day-old question",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": old_ts,
+        }
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    result = lambda_handler({}, None)
+    import json as _json
+    body = _json.loads(result["body"])
+    assert body["new_messages_found"] == 0
+    assert body["alerts_posted"] == 0
+    mock_slack.assert_not_called()
+
+
+@mock_aws
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
+@patch("handler.post_guest_alert")
+def test_poller_alerts_recent_messages_within_window(
+    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable,
+    dynamodb_table, monkeypatch,
+):
+    """Companion to the lookback test: a message inside the window still gets
+    alerted — proves the gate isn't dropping everything."""
+    monkeypatch.setenv("POLLER_LOOKBACK_HOURS", "6")
+
+    now = datetime.now(timezone.utc)
+    recent_ts = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-123",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-recent",
+            "body": "The AC is broken",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": recent_ts,
+        }
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+    mock_classify.return_value = {"category": "URGENT_MAINTENANCE", "urgency": "HIGH", "summary": "AC"}
+    mock_draft.return_value = "Draft"
+    mock_slack.return_value = {"ok": True}
+
+    result = lambda_handler({}, None)
+    import json as _json
+    body = _json.loads(result["body"])
     assert body["alerts_posted"] == 1
 
 
