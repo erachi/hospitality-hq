@@ -19,7 +19,7 @@ import base64
 
 from config import get_webhook_secret
 from hospitable_client import HospitableClient
-from state_tracker import StateTracker
+from state_tracker import StateTracker, message_dedup_key
 from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
 from handler import load_property_context, build_conversation_summary, _date_only
@@ -71,36 +71,50 @@ def webhook_handler(event, context):
         logger.info(f"Ignoring non-guest message (sender_type: {sender_type})")
         return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "not guest message"})}
 
-    # Step 5: Dedup — check if already processed
+    # Step 5: Dedup — check if already processed.
+    # The webhook event id (`payload["id"]`) is the DELIVERY id, not a message
+    # id — the hourly poller sees API message objects, not webhook events, and
+    # a key built from the event id would never collide with the poller's key.
+    # Both paths now derive the same dedup key from fields both payloads carry
+    # (created_at + body hash), via message_dedup_key().
     webhook_id = payload.get("id", "")
     reservation_id = data.get("reservation_id", "")
 
-    if not webhook_id or not reservation_id:
-        logger.warning("Missing webhook id or reservation_id")
+    if not reservation_id:
+        logger.warning(f"Missing reservation_id (webhook event {webhook_id})")
         return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "missing ids"})}
 
+    dedup_key = message_dedup_key(reservation_id, data)
+
     tracker = StateTracker()
-    if tracker.is_message_processed(reservation_id, webhook_id):
-        logger.info(f"Webhook {webhook_id} already processed, skipping")
+    if tracker.is_message_processed(reservation_id, dedup_key):
+        logger.info(
+            f"Webhook event {webhook_id} message already processed "
+            f"(dedup_key={dedup_key}), skipping"
+        )
         return {"statusCode": 200, "body": json.dumps({"status": "duplicate"})}
 
     # Step 6: Enrich — fetch reservation details
     try:
-        result = process_webhook_message(data, payload, tracker, reservation_id, webhook_id)
+        result = process_webhook_message(
+            data, payload, tracker, reservation_id, webhook_id, dedup_key,
+        )
         return result
     except Exception as e:
-        logger.error(f"Error processing webhook: {e}")
-        # Still return 200 to prevent Hospitable retries on transient errors
-        # Mark as processed to avoid re-processing on retry
-        tracker.mark_message_processed(
-            reservation_id, webhook_id, "ERROR", "MEDIUM", "unknown"
+        # Return 200 to prevent Hospitable retries on transient errors, but do
+        # NOT mark as processed — leave it for the hourly safety-net poll to
+        # pick up. (Previously marked as "ERROR" here, which permanently hid
+        # transient failures from the poller.)
+        logger.error(
+            f"Error processing webhook event {webhook_id} "
+            f"(reservation {reservation_id}): {e}"
         )
         return {"statusCode": 200, "body": json.dumps({"status": "error", "error": str(e)})}
 
 
 def process_webhook_message(
     data: dict, payload: dict, tracker: StateTracker,
-    reservation_id: str, webhook_id: str,
+    reservation_id: str, webhook_id: str, dedup_key: str,
 ) -> dict:
     """Process a single webhook guest message through the classify/draft/notify pipeline."""
     hospitable = HospitableClient()
@@ -145,7 +159,7 @@ def process_webhook_message(
     msg_text = data.get("body") or ""
     if not msg_text.strip():
         tracker.mark_message_processed(
-            reservation_id, webhook_id, "EMPTY", "LOW", property_name
+            reservation_id, dedup_key, "EMPTY", "LOW", property_name
         )
         return {"statusCode": 200, "body": json.dumps({"status": "skipped", "reason": "empty message"})}
 
@@ -207,7 +221,7 @@ def process_webhook_message(
     )
 
     if slack_result.get("ok"):
-        logger.info(f"Posted Slack alert for webhook {webhook_id}")
+        logger.info(f"Posted Slack alert for webhook event {webhook_id}")
 
         # Record thread mapping so future thread replies can be routed back here.
         try:
@@ -221,13 +235,14 @@ def process_webhook_message(
                     guest_name=guest_name,
                 )
         except Exception as e:
-            logger.warning(f"Could not save thread mapping for webhook {webhook_id}: {e}")
+            logger.warning(f"Could not save thread mapping for webhook event {webhook_id}: {e}")
     else:
         logger.error(f"Slack post failed: {slack_result.get('error', 'unknown')}")
 
-    # Mark as processed
+    # Mark as processed using the shared dedup key so the hourly poller
+    # won't re-alert the same message later.
     tracker.mark_message_processed(
-        reservation_id, webhook_id,
+        reservation_id, dedup_key,
         classification["category"], classification["urgency"],
         property_name,
     )
