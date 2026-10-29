@@ -1,14 +1,23 @@
-"""Tests for Slack notification formatting and posting."""
+"""Tests for Slack notification formatting and posting.
+
+The alert layout was slimmed to 5 blocks: a prefix context line, the AI
+situation summary, the quoted guest message, the draft reply, and a footer
+context line. Booking grid, repeat/new badge, source/status, and full
+conversation history are intentionally NOT rendered in the top message —
+they're available via thread Q&A.
+"""
 
 import json
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import responses
 from unittest.mock import patch
-from slack_notifier import post_guest_alert
+
+from slack_notifier import post_guest_alert, _format_message_time
 
 
 def _request_payload(call) -> dict:
-    """Decode the JSON body of a recorded request."""
     body = call.request.body
     if isinstance(body, bytes):
         body = body.decode("utf-8")
@@ -16,7 +25,7 @@ def _request_payload(call) -> dict:
 
 
 def _blocks_text(payload: dict) -> str:
-    """Concatenate every text value across all blocks for easy substring assertions."""
+    """Concatenate every text value across all blocks for substring assertions."""
     parts = []
     for block in payload.get("blocks", []):
         text = block.get("text")
@@ -29,10 +38,31 @@ def _blocks_text(payload: dict) -> str:
     return "\n".join(parts)
 
 
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_urgent_uses_block_kit(mock_token):
-    """Urgent maintenance alert should post Block Kit blocks with booking context."""
+# ─── Call defaults ────────────────────────────────────────────────────────
+
+_BASE_KWARGS = dict(
+    guest_name="Jane Smith",
+    property_name="Villa Bougainvillea",
+    checkin_date="2026-04-20",
+    checkout_date="2026-04-25",
+    guest_message="The AC isn't working and it's really hot!",
+    classification={
+        "category": "URGENT_MAINTENANCE",
+        "urgency": "HIGH",
+        "summary": "AC not working",
+        "descriptor": "Urgent Maintenance",
+    },
+    draft_response="Hi Jane! Sending our tech now.",
+    reservation_uuid="res-uuid-123",
+)
+
+
+def _call(**overrides) -> dict:
+    kwargs = {**_BASE_KWARGS, **overrides}
+    return post_guest_alert(**kwargs)
+
+
+def _stub_slack():
     responses.add(
         responses.POST,
         "https://slack.com/api/chat.postMessage",
@@ -40,408 +70,324 @@ def test_post_guest_alert_urgent_uses_block_kit(mock_token):
         status=200,
     )
 
-    result = post_guest_alert(
-        guest_name="Jane Smith",
-        property_name="Villa Bougainvillea",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message="The AC isn't working and it's really hot!",
-        classification={
-            "category": "URGENT_MAINTENANCE",
-            "urgency": "HIGH",
-            "summary": "AC not working",
-            "descriptor": "AC Not Working",
-        },
-        draft_response="Hi Jane! I'm so sorry about the AC...",
-        reservation_uuid="res-uuid-123",
-        booking_source="airbnb",
-        reservation_status="checkpoint",
-    )
 
-    assert result["ok"] is True
+# ─── Layout: block count + ordering ───────────────────────────────────────
 
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_alert_renders_five_blocks_in_order(mock_token):
+    """The lean layout is exactly 5 blocks: prefix, situation, guest msg,
+    draft, footer. Guards against anyone re-adding the booking grid or
+    history on top."""
+    _stub_slack()
+    _call()
     payload = _request_payload(responses.calls[0])
-    assert "blocks" in payload
-    assert isinstance(payload["blocks"], list) and len(payload["blocks"]) > 0
-    assert payload["unfurl_links"] is False
-    assert payload["unfurl_media"] is False
+    blocks = payload["blocks"]
+    assert len(blocks) == 5
+    assert [b["type"] for b in blocks] == ["context", "section", "section", "section", "context"]
 
-    # Plain-text fallback for mobile notifications — descriptor, not category label.
-    assert "AC Not Working" in payload["text"]
+
+# ─── Prefix line (block 1) ────────────────────────────────────────────────
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_prefix_shows_urgency_descriptor_property(mock_token):
+    _stub_slack()
+    _call()
+    payload = _request_payload(responses.calls[0])
+    prefix = payload["blocks"][0]["elements"][0]["text"]
+    assert "🔴" in prefix
+    assert "Urgent Maintenance" in prefix
+    assert "Villa Bougainvillea" in prefix
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_prefix_includes_local_message_time_when_provided(mock_token):
+    _stub_slack()
+    now_local = datetime.now(ZoneInfo("America/Phoenix"))
+    iso = now_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _call(message_timestamp=iso)
+    payload = _request_payload(responses.calls[0])
+    prefix = payload["blocks"][0]["elements"][0]["text"]
+    # Today's message renders as "today H:MM AM/PM MST".
+    assert "today" in prefix
+    assert "MST" in prefix or "MDT" in prefix
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_prefix_omits_time_clause_when_timestamp_missing(mock_token):
+    """Missing message_timestamp must not add an empty " · " at the end."""
+    _stub_slack()
+    _call(message_timestamp="")
+    payload = _request_payload(responses.calls[0])
+    prefix = payload["blocks"][0]["elements"][0]["text"]
+    assert not prefix.rstrip().endswith("·")
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_low_urgency_uses_green_dot(mock_token):
+    _stub_slack()
+    _call(classification={
+        "category": "PRE_ARRIVAL", "urgency": "LOW",
+        "summary": "Early check-in", "descriptor": "Early Check-in Request",
+    })
+    payload = _request_payload(responses.calls[0])
+    prefix = payload["blocks"][0]["elements"][0]["text"]
+    assert "🟢" in prefix
+    assert "🔴" not in prefix
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_prefix_descriptor_falls_back_to_category_label(mock_token):
+    """When the classifier omits `descriptor`, use the human category label."""
+    _stub_slack()
+    _call(classification={"category": "GENERAL", "urgency": "MEDIUM", "summary": "hi"})
+    payload = _request_payload(responses.calls[0])
+    prefix = payload["blocks"][0]["elements"][0]["text"]
+    assert "General Inquiry" in prefix
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_no_big_h1_header_block(mock_token):
+    """Regression guard: the old layout opened with a `header` block. The lean
+    layout opens with `context`."""
+    _stub_slack()
+    _call()
+    payload = _request_payload(responses.calls[0])
+    assert payload["blocks"][0]["type"] != "header"
+    assert not any(b.get("type") == "header" for b in payload["blocks"])
+
+
+# ─── Situation block (block 2) ────────────────────────────────────────────
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_situation_renders_haiku_summary_when_provided(mock_token):
+    _stub_slack()
+    summary = (
+        "• *Agreed so far:* 4pm check-in confirmed\n"
+        "• *Still open:* AC not cooling"
+    )
+    _call(conversation_summary=summary)
+    payload = _request_payload(responses.calls[0])
+    situation = payload["blocks"][1]["text"]["text"]
+    assert "Agreed so far" in situation
+    assert "Still open" in situation
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_situation_falls_back_to_classifier_summary(mock_token):
+    """Haiku summary occasionally fails upstream (handler logs + passes "").
+    The situation block must still carry some context — the classifier's
+    one-line summary."""
+    _stub_slack()
+    _call(conversation_summary="")
+    payload = _request_payload(responses.calls[0])
+    situation = payload["blocks"][1]["text"]["text"]
+    assert "AC not working" in situation
+
+
+# ─── Guest message block (block 3) ────────────────────────────────────────
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_guest_message_block_labels_and_quotes(mock_token):
+    _stub_slack()
+    _call()
+    payload = _request_payload(responses.calls[0])
+    guest_block = payload["blocks"][2]["text"]["text"]
+    assert "Guest · Jane Smith" in guest_block
+    # Blockquote prefix on the actual message.
+    assert "> The AC isn't working and it's really hot!" in guest_block
+
+
+# ─── Draft block (block 4) ────────────────────────────────────────────────
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_draft_block_labels_and_quotes(mock_token):
+    _stub_slack()
+    _call()
+    payload = _request_payload(responses.calls[0])
+    draft_block = payload["blocks"][3]["text"]["text"]
+    assert "Draft reply" in draft_block
+    assert "> Hi Jane! Sending our tech now." in draft_block
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_draft_block_renders_placeholder_when_draft_missing(mock_token):
+    _stub_slack()
+    _call(draft_response="")
+    payload = _request_payload(responses.calls[0])
+    draft_block = payload["blocks"][3]["text"]["text"]
+    assert "no draft" in draft_block
+
+
+# ─── Footer (block 5) ─────────────────────────────────────────────────────
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_footer_shows_reservation_uuid_and_cta(mock_token):
+    _stub_slack()
+    _call()
+    payload = _request_payload(responses.calls[0])
+    footer = payload["blocks"][4]["elements"][0]["text"]
+    assert "res-uuid-123" in footer
+    assert "Copy draft" in footer
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_footer_no_response_needed_hides_cta(mock_token):
+    _stub_slack()
+    _call(classification={
+        "category": "POSITIVE", "urgency": "LOW",
+        "summary": "Guest enjoyed stay", "response_needed": False,
+    })
+    payload = _request_payload(responses.calls[0])
+    footer = payload["blocks"][4]["elements"][0]["text"]
+    assert "No response needed" in footer
+    assert "Copy draft" not in footer
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_positive_with_response_needed_still_prompts(mock_token):
+    """A thank-you that embeds another question (`response_needed=True`) must
+    still show the Copy-draft CTA. Previously regressed when the footer
+    switched on `category == POSITIVE` directly."""
+    _stub_slack()
+    _call(classification={
+        "category": "POSITIVE", "urgency": "LOW",
+        "summary": "Thanks + question", "response_needed": True,
+    })
+    payload = _request_payload(responses.calls[0])
+    footer = payload["blocks"][4]["elements"][0]["text"]
+    assert "Copy draft" in footer
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_response_needed_defaults_to_true(mock_token):
+    _stub_slack()
+    _call(classification={"category": "GENERAL", "urgency": "LOW", "summary": "x"})
+    payload = _request_payload(responses.calls[0])
+    footer = payload["blocks"][4]["elements"][0]["text"]
+    assert "Copy draft" in footer
+
+
+# ─── Mobile fallback text ─────────────────────────────────────────────────
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_mobile_fallback_text_is_terse_one_liner(mock_token):
+    _stub_slack()
+    _call()
+    payload = _request_payload(responses.calls[0])
+    assert "Urgent Maintenance" in payload["text"]
     assert "Villa Bougainvillea" in payload["text"]
+    assert "AC not working" in payload["text"]
 
-    text = _blocks_text(payload)
-    # Header uses the uppercased descriptor + property, flanked with 🚨 for HIGH.
-    header_block = payload["blocks"][0]
-    assert header_block["type"] == "header"
-    header_text = header_block["text"]["text"]
-    assert "AC NOT WORKING" in header_text
-    assert "Villa Bougainvillea" in header_text
-    assert "🚨" in header_text
-    # The old category-emoji combo (🔧) should no longer appear in the header.
-    assert "🔧" not in header_text
 
-    assert "Jane Smith" in text
-    assert "2026-04-20" in text and "2026-04-25" in text
-    # Source + status should be human-friendly.
-    assert "Airbnb" in text
-    assert "Checked In" in text
-    # Reservation id appears in the footer.
-    assert "res-uuid-123" in text
-    # New guest badge by default.
-    assert "(New)" in text
+# ─── Regression guards: things that must NOT appear in the lean alert ────
 
 
 @responses.activate
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_header_non_high_urgency(mock_token):
-    """Non-HIGH urgency uses a plain urgency dot, not the 🚨 flanking."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    post_guest_alert(
-        guest_name="Amrit",
-        property_name="Villa Bougainvillea",
-        checkin_date="2026-04-29",
-        checkout_date="2026-05-03",
-        guest_message="Can we check in at 11?",
-        classification={
-            "category": "PRE_ARRIVAL",
-            "urgency": "LOW",
-            "summary": "Early check-in request",
-            "descriptor": "Early Check-in Request",
-        },
-        draft_response="Let me check on that!",
-        reservation_uuid="res-uuid-999",
-    )
-
-    payload = _request_payload(responses.calls[0])
-    header_text = payload["blocks"][0]["text"]["text"]
-    assert "EARLY CHECK-IN REQUEST" in header_text
-    assert "Villa Bougainvillea" in header_text
-    assert "🟢" in header_text  # LOW urgency dot
-    assert "🚨" not in header_text
-
-
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_header_falls_back_without_descriptor(mock_token):
-    """Missing descriptor falls back to the category label so the header still reads sensibly."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    post_guest_alert(
-        guest_name="Test",
-        property_name="The Palm Club",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message="hello",
-        classification={"category": "GENERAL", "urgency": "MEDIUM", "summary": "hi"},
-        draft_response="hi",
-        reservation_uuid="res-fallback",
-    )
-
-    payload = _request_payload(responses.calls[0])
-    header_text = payload["blocks"][0]["text"]["text"]
-    assert "GENERAL INQUIRY" in header_text
-    assert "The Palm Club" in header_text
-
-
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_no_response_needed(mock_token):
-    """When the classifier says response_needed=False, footer suppresses the send call-to-action."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    result = post_guest_alert(
-        guest_name="John Doe",
-        property_name="The Palm Club",
-        checkin_date="2026-04-18",
-        checkout_date="2026-04-22",
-        guest_message="We had an amazing time, thank you!",
-        classification={
-            "category": "POSITIVE",
-            "urgency": "LOW",
-            "summary": "Guest enjoyed their stay",
-            "response_needed": False,
-        },
-        draft_response="So glad you enjoyed it!",
-        reservation_uuid="res-uuid-456",
-    )
-
-    assert result["ok"] is True
-
+def test_booking_grid_fields_are_not_rendered(mock_token):
+    """Repeat/new badge, source platform, status, and stay dates all moved
+    out of the top message. Each stays reachable via thread Q&A."""
+    _stub_slack()
+    _call(booking_source="airbnb", reservation_status="checkpoint", is_repeat_guest=True)
     payload = _request_payload(responses.calls[0])
     text = _blocks_text(payload)
-    assert "No response needed" in text
-    assert "Copy draft" not in text
+    assert "Airbnb" not in text
+    assert "Checked In" not in text
+    assert "(Repeat)" not in text
+    assert "(New)" not in text
+    # Stay dates (as supplied via checkin_date/checkout_date) are not rendered either.
+    assert "2026-04-20" not in text
+    assert "2026-04-25" not in text
 
 
 @responses.activate
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_positive_with_embedded_request_prompts_reply(mock_token):
-    """POSITIVE category + response_needed=True must still prompt the host to send a draft.
-
-    Regression guard: footer used to check `category == POSITIVE`, which
-    silenced the call-to-action on messages like "thanks! one more q…".
-    """
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    post_guest_alert(
-        guest_name="Amrit",
-        property_name="Villa Bougainvillea",
-        checkin_date="2026-04-29",
-        checkout_date="2026-05-03",
-        guest_message="thank you so much! by the way, can we check in at 11?",
-        classification={
-            "category": "POSITIVE",
-            "urgency": "LOW",
-            "summary": "Thanks + early check-in request",
-            "response_needed": True,
-        },
-        draft_response="Let me check on early check-in for you!",
-        reservation_uuid="res-uuid-789",
-    )
-
+def test_conversation_history_is_not_rendered(mock_token):
+    """`recent_messages` is accepted for backward-compat but must not appear
+    on the top message — thread Q&A handles it on demand."""
+    _stub_slack()
+    history = [
+        {"sender_type": "guest", "body": "Hi, checking in at 4?", "created_at": "2026-04-20T20:00:00Z"},
+        {"sender_type": "host",  "body": "Yes, 4pm works!",        "created_at": "2026-04-20T20:05:00Z"},
+    ]
+    _call(recent_messages=history)
     payload = _request_payload(responses.calls[0])
     text = _blocks_text(payload)
-    assert "Copy draft" in text
-    assert "No response needed" not in text
+    assert "Hi, checking in at 4?" not in text
+    assert "Yes, 4pm works!" not in text
+    # Old section labels are gone.
+    assert "CONVERSATION HISTORY" not in text
+    assert "CONVERSATION SUMMARY" not in text
+    assert "NEW MESSAGE" not in text
 
 
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_defaults_to_response_needed(mock_token):
-    """If classification lacks response_needed, default to showing the send CTA."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    post_guest_alert(
-        guest_name="Test",
-        property_name="Test Property",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message="Test",
-        classification={"category": "GENERAL", "urgency": "LOW", "summary": "Test"},
-        draft_response="Test",
-        reservation_uuid="res-default",
-    )
-
-    payload = _request_payload(responses.calls[0])
-    text = _blocks_text(payload)
-    assert "Copy draft" in text
+# ─── Auth header (unchanged behavior) ─────────────────────────────────────
 
 
 @responses.activate
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
 def test_slack_auth_header(mock_token):
-    """Should use the bot token in the Authorization header."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    post_guest_alert(
-        guest_name="Test",
-        property_name="Test Property",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message="Test message",
-        classification={"category": "GENERAL", "urgency": "LOW", "summary": "Test"},
-        draft_response="Test response",
-        reservation_uuid="res-test",
-    )
-
-    auth_header = responses.calls[0].request.headers["Authorization"]
-    assert auth_header == "Bearer xoxb-test-token"
+    _stub_slack()
+    _call()
+    assert responses.calls[0].request.headers["Authorization"] == "Bearer xoxb-test-token"
 
 
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_with_message_history(mock_token):
-    """Recent messages should render in the alert and the trigger should be bolded."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    trigger = "The AC isn't working and it's really hot!"
-    recent = [
-        {
-            "sender_type": "guest",
-            "body": "Hi, checking in at 4?",
-            "created_at": "2026-04-20T20:00:00Z",
-        },
-        {
-            "sender_type": "host",
-            "body": "Yes, 4pm works!",
-            "created_at": "2026-04-20T20:05:00Z",
-        },
-        {
-            "sender_type": "guest",
-            "body": trigger,
-            "created_at": "2026-04-20T22:00:00Z",
-        },
-    ]
-
-    post_guest_alert(
-        guest_name="Jane Smith",
-        property_name="Villa Bougainvillea",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message=trigger,
-        classification={
-            "category": "URGENT_MAINTENANCE",
-            "urgency": "HIGH",
-            "summary": "AC not working",
-        },
-        draft_response="Sending someone over right now.",
-        reservation_uuid="res-uuid-789",
-        booking_source="airbnb",
-        reservation_status="checkpoint",
-        is_repeat_guest=True,
-        recent_messages=recent,
-    )
-
-    payload = _request_payload(responses.calls[0])
-    text = _blocks_text(payload)
-
-    # The triggering message should appear in its own "NEW MESSAGE" section.
-    assert "NEW MESSAGE" in text
-    assert trigger in text
-    # Prior messages should appear with GUEST/HOST labels in the history.
-    assert "[GUEST]" in text
-    assert "[HOST]" in text
-    assert "Hi, checking in at 4?" in text
-    assert "Yes, 4pm works!" in text
-    # The trigger should NOT be duplicated in the conversation history.
-    # It appears once in NEW MESSAGE, and the history excludes it.
-    assert text.count(trigger) == 1
-    # Repeat guest badge should flip.
-    assert "(Repeat)" in text
-    assert "(New)" not in text
+# ─── _format_message_time unit tests ──────────────────────────────────────
 
 
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_without_history(mock_token):
-    """With no recent messages, the history section should show the empty placeholder."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    post_guest_alert(
-        guest_name="Jane Smith",
-        property_name="Villa Bougainvillea",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message="Hello",
-        classification={"category": "GENERAL", "urgency": "LOW", "summary": "Hi"},
-        draft_response="Hi back",
-        reservation_uuid="res-empty",
-        recent_messages=[],
-    )
-
-    payload = _request_payload(responses.calls[0])
-    text = _blocks_text(payload)
-    assert "No prior messages" in text
+def test_format_message_time_today():
+    now_utc = datetime.now(timezone.utc)
+    out = _format_message_time(now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    assert out.startswith("today ")
+    assert "MST" in out or "MDT" in out
 
 
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_renders_conversation_summary(mock_token):
-    """When conversation_summary is provided, the block appears above the history."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
-
-    summary = (
-        "• *Agreed so far:* Guest to complete rental agreement + ID\n"
-        "• *Still open:* Early check-in at 11am needs verification"
-    )
-
-    post_guest_alert(
-        guest_name="Amrit",
-        property_name="Villa Bougainvillea",
-        checkin_date="2026-04-29",
-        checkout_date="2026-05-03",
-        guest_message="Can we check in at 11?",
-        classification={"category": "PRE_ARRIVAL", "urgency": "LOW", "summary": "Early check-in"},
-        draft_response="Let me check on that.",
-        reservation_uuid="res-sum",
-        conversation_summary=summary,
-    )
-
-    payload = _request_payload(responses.calls[0])
-    text = _blocks_text(payload)
-    assert "CONVERSATION SUMMARY" in text
-    assert "Agreed so far" in text
-    assert "Still open" in text
-
-    # Summary must precede history in the rendered blocks so the host sees
-    # the at-a-glance view first.
-    summary_idx = text.index("CONVERSATION SUMMARY")
-    history_idx = text.index("CONVERSATION HISTORY")
-    assert summary_idx < history_idx
+def test_format_message_time_yesterday():
+    now_phx = datetime.now(ZoneInfo("America/Phoenix"))
+    yesterday_phx = now_phx - timedelta(days=1)
+    iso = yesterday_phx.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out = _format_message_time(iso)
+    assert out.startswith("yesterday ")
 
 
-@responses.activate
-@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
-def test_post_guest_alert_omits_summary_block_when_empty(mock_token):
-    """Empty or missing conversation_summary should not emit a SUMMARY block."""
-    responses.add(
-        responses.POST,
-        "https://slack.com/api/chat.postMessage",
-        json={"ok": True, "ts": "1234567890.123456"},
-        status=200,
-    )
+def test_format_message_time_old_message_uses_month_day():
+    # 10 days ago — not today, not yesterday.
+    old = datetime.now(timezone.utc) - timedelta(days=10)
+    iso = old.strftime("%Y-%m-%dT%H:%M:%SZ")
+    out = _format_message_time(iso)
+    assert not out.startswith("today")
+    assert not out.startswith("yesterday")
+    # Should include a month abbreviation.
+    assert any(mo in out for mo in ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
 
-    post_guest_alert(
-        guest_name="Jane",
-        property_name="The Palm Club",
-        checkin_date="2026-04-20",
-        checkout_date="2026-04-25",
-        guest_message="hi",
-        classification={"category": "GENERAL", "urgency": "LOW", "summary": "Hi"},
-        draft_response="hi",
-        reservation_uuid="res-no-sum",
-        conversation_summary="",
-    )
 
-    payload = _request_payload(responses.calls[0])
-    text = _blocks_text(payload)
-    assert "CONVERSATION SUMMARY" not in text
-    # History still renders.
-    assert "CONVERSATION HISTORY" in text
+def test_format_message_time_empty_returns_empty():
+    assert _format_message_time("") == ""
+
+
+def test_format_message_time_unparseable_returns_raw():
+    assert _format_message_time("not-a-timestamp") == "not-a-timestamp"

@@ -1,11 +1,19 @@
 """Slack notification formatting and posting.
 
-Uses Slack Block Kit to render rich guest alerts with booking context, recent
-message history, and a draft response. Never sends messages to guests —
-drafts are for VJ or Maggie to review and send manually.
+Posts a lean Block Kit guest alert to #guest-alerts. The alert carries only
+the four things that drive triage — property, message time, situation so
+far, draft response — because the Thread Interactions handler lets anyone
+pull booking details or history from the thread on demand.
+
+Never sends messages to guests. Drafts are for VJ or Maggie to review and
+send manually.
 """
 
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 import requests
+
 from config import get_slack_bot_token, SLACK_CHANNEL_ID
 
 
@@ -23,6 +31,7 @@ CATEGORY_LABEL = {
     "POSITIVE": "Positive Feedback",
 }
 
+# Retained for thread Q&A — not rendered in the lean top-level alert.
 STATUS_DISPLAY = {
     "accepted": "Confirmed",
     "checkpoint": "Checked In",
@@ -30,7 +39,6 @@ STATUS_DISPLAY = {
     "cancelled": "Cancelled",
     "declined": "Declined",
 }
-
 SOURCE_DISPLAY = {
     "airbnb": "Airbnb",
     "vrbo": "VRBO",
@@ -42,44 +50,15 @@ SOURCE_DISPLAY = {
 # Slack Block Kit hard limit per text field.
 _MAX_TEXT_LEN = 3000
 
+# Both properties are in Scottsdale; move into per-property KB when a
+# third property with a different tz comes online.
+_DEFAULT_TZ = "America/Phoenix"
+
 
 def _truncate(text: str, limit: int = _MAX_TEXT_LEN) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
-
-
-def _format_message_history(recent_messages: list[dict], trigger_message: str) -> str:
-    """Format prior conversation messages for Block Kit display.
-
-    Excludes the triggering message (shown separately in its own block) and
-    sorts chronologically so the conversation reads top-to-bottom.
-    """
-    if not recent_messages:
-        return "_No prior messages_"
-
-    trigger = (trigger_message or "").strip()
-
-    # Sort chronologically (oldest first) so the thread reads naturally
-    sorted_msgs = sorted(recent_messages, key=lambda m: m.get("created_at", ""))
-
-    lines = []
-    for msg in sorted_msgs:
-        sender = msg.get("sender_type", msg.get("sender", ""))
-        body = (msg.get("body") or "").strip()
-        if not body:
-            continue
-        # Skip the triggering message — it gets its own prominent section
-        if body == trigger and sender == "guest":
-            continue
-        timestamp = msg.get("created_at", "")
-        label = "GUEST" if sender == "guest" else "HOST"
-        lines.append(f"*[{label}]* {body}  _({timestamp})_")
-
-    if not lines:
-        return "_No prior messages_"
-
-    return _truncate("\n".join(lines))
 
 
 def _format_source(source: str) -> str:
@@ -102,6 +81,37 @@ def _format_source_status(source: str, status: str) -> str:
     return source_s or status_s or "—"
 
 
+def _format_message_time(iso_ts: str, tz_name: str = _DEFAULT_TZ) -> str:
+    """Human-friendly local time for the triggering message.
+
+    Returns strings like "today 3:12 PM MST", "yesterday 11:04 AM MST",
+    or "Apr 18 10:22 AM MST" for older messages. Returns the raw input on
+    parse failure so a weird timestamp never crashes the alert.
+    """
+    if not iso_ts:
+        return ""
+    try:
+        s = iso_ts
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local = dt.astimezone(ZoneInfo(tz_name))
+    except (ValueError, TypeError):
+        return iso_ts
+
+    now_local = datetime.now(ZoneInfo(tz_name))
+    time_part = local.strftime("%-I:%M %p %Z")
+    today = now_local.date()
+    msg_date = local.date()
+    if msg_date == today:
+        return f"today {time_part}"
+    if (today - msg_date).days == 1:
+        return f"yesterday {time_part}"
+    return f"{local.strftime('%b %-d')} {time_part}"
+
+
 def _build_blocks(
     *,
     guest_name: str,
@@ -117,120 +127,66 @@ def _build_blocks(
     is_repeat_guest: bool,
     recent_messages: list[dict],
     conversation_summary: str,
+    message_timestamp: str,
 ) -> list[dict]:
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
-    summary = classification.get("summary", "")
-    # Short action-oriented phrase from the classifier ("Early Check-in Request"),
-    # not a category label. Fall back to the category label if missing/blank so
-    # the header still reads sensibly.
+    summary = (classification.get("summary") or "").strip()
     descriptor = (classification.get("descriptor") or "").strip()
     if not descriptor:
         descriptor = CATEGORY_LABEL.get(category, category)
 
     urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
 
-    # Header: `{urgency} {DESCRIPTOR} · {property}`. HIGH flanked with 🚨 so it
-    # stands out in the channel list. The descriptor is uppercased for visual
-    # weight in the Slack header block.
-    lede = f"{descriptor.upper()} · {property_name}"
-    if urgency == "HIGH":
-        header_text = f"🚨 {lede} 🚨"
-    else:
-        header_text = f"{urgency_icon} {lede}"
+    # ---- 1. Prefix line: urgency · descriptor · property · local time ----
+    prefix_parts = [f"{urgency_icon} *{descriptor}*", property_name]
+    local_time = _format_message_time(message_timestamp)
+    if local_time:
+        prefix_parts.append(local_time)
+    prefix_text = " · ".join(prefix_parts)
 
-    guest_badge = "_(Repeat)_" if is_repeat_guest else "_(New)_"
-    source_status = _format_source_status(booking_source, reservation_status)
+    # ---- 2. Situation: AI 2-bullet summary, or fallback to classifier line ----
+    situation_text = (conversation_summary or "").strip() or (summary or "_(no summary available)_")
 
-    # The classifier decides whether a reply is warranted; default True so
-    # stale or missing fields never silently suppress the draft.
+    # ---- 3. New guest message, quoted under a `Guest · <name>:` label ----
+    guest_label = f"*Guest · {guest_name}:*" if guest_name else "*Guest:*"
+    guest_quote = guest_message.strip() or "_(no message body)_"
+    guest_block_text = _truncate(f"{guest_label}\n> {guest_quote}")
+
+    # ---- 4. Draft response ----
+    draft = (draft_response or "").strip()
+    draft_block_text = _truncate(f"*Draft reply:*\n> {draft}") if draft else "*Draft reply:*\n> _(no draft)_"
+
+    # ---- 5. Footer: reservation id + action text ----
     response_needed = classification.get("response_needed", True)
     if response_needed:
         action_text = "Copy draft & send via Hospitable · React ❌ to skip"
     else:
         action_text = "No response needed unless you'd like to reply."
+    footer_text = f"`{reservation_uuid}` · {action_text}"
 
-    history_text = _format_message_history(recent_messages, guest_message)
-    draft_block_text = _truncate(f">>> {draft_response}") if draft_response else ">>> _(no draft)_"
-
-    blocks = [
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": header_text, "emoji": True},
-        },
+    return [
         {
             "type": "context",
-            "elements": [{"type": "mrkdwn", "text": _truncate(f"_{summary}_")}],
+            "elements": [{"type": "mrkdwn", "text": _truncate(prefix_text)}],
         },
         {
             "type": "section",
-            "fields": [
-                {"type": "mrkdwn", "text": f"*Property*\n{property_name}"},
-                {"type": "mrkdwn", "text": f"*Guest*\n{guest_name} {guest_badge}"},
-                {"type": "mrkdwn", "text": f"*Dates*\n{checkin_date} → {checkout_date}"},
-                {"type": "mrkdwn", "text": f"*Source / Status*\n{source_status}"},
-            ],
-        },
-        {"type": "divider"},
-        # ---- New guest message (the trigger) shown prominently ----
-        {
-            "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "*💬 NEW MESSAGE*"}],
+            "text": {"type": "mrkdwn", "text": _truncate(situation_text)},
         },
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": _truncate(f"> {guest_message}")},
-        },
-        {"type": "divider"},
-    ]
-
-    # ---- Optional 2-bullet conversation summary, inserted above history ----
-    summary_text = (conversation_summary or "").strip()
-    if summary_text:
-        blocks.extend([
-            {
-                "type": "context",
-                "elements": [{"type": "mrkdwn", "text": "*CONVERSATION SUMMARY*"}],
-            },
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": _truncate(summary_text)},
-            },
-            {"type": "divider"},
-        ])
-
-    blocks.extend([
-        # ---- Prior conversation for context ----
-        {
-            "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "*CONVERSATION HISTORY*"}],
-        },
-        {
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": history_text},
-        },
-        {"type": "divider"},
-        {
-            "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "*DRAFT RESPONSE*"}],
+            "text": {"type": "mrkdwn", "text": guest_block_text},
         },
         {
             "type": "section",
             "text": {"type": "mrkdwn", "text": draft_block_text},
         },
-        {"type": "divider"},
         {
             "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"`{reservation_uuid}` · {action_text}",
-                },
-            ],
+            "elements": [{"type": "mrkdwn", "text": _truncate(footer_text)}],
         },
-    ])
-
-    return blocks
+    ]
 
 
 def post_guest_alert(
@@ -247,8 +203,14 @@ def post_guest_alert(
     is_repeat_guest: bool = False,
     recent_messages: list[dict] = None,
     conversation_summary: str = "",
+    message_timestamp: str = "",
 ) -> dict:
     """Post a Block Kit guest alert to the Slack channel.
+
+    `booking_source`, `reservation_status`, `is_repeat_guest`, and
+    `recent_messages` are accepted for backward compatibility with the two
+    callers but are not rendered in the lean top-level alert — thread Q&A
+    exposes them on demand.
 
     Returns the Slack API response.
     """
@@ -259,7 +221,8 @@ def post_guest_alert(
 
     urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
 
-    # Mobile push-notification fallback — mirror the header lede plus summary.
+    # Mobile push-notification fallback — the terse one-liner the OS shows
+    # on a locked phone before Block Kit renders.
     fallback_text = f"{urgency_icon} {descriptor} — {property_name}: {summary}"
 
     blocks = _build_blocks(
@@ -276,6 +239,7 @@ def post_guest_alert(
         is_repeat_guest=is_repeat_guest,
         recent_messages=recent_messages or [],
         conversation_summary=conversation_summary,
+        message_timestamp=message_timestamp,
     )
 
     response = requests.post(
