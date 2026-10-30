@@ -391,3 +391,25 @@ def test_format_message_time_empty_returns_empty():
 
 def test_format_message_time_unparseable_returns_raw():
     assert _format_message_time("not-a-timestamp") == "not-a-timestamp"
+
+
+def test_format_message_time_survives_missing_tz_database():
+    """The python3.12 Lambda runtime has no system tz database. A missing
+    zone must fall back to fixed MST, never raise and kill the alert."""
+    from zoneinfo import ZoneInfoNotFoundError
+
+    with patch("slack_notifier.ZoneInfo", side_effect=ZoneInfoNotFoundError("x")):
+        result = _format_message_time("2026-04-18T17:22:00Z")
+    assert result.endswith("10:22 AM MST")
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_alert_still_posts_when_tz_database_missing(mock_token):
+    from zoneinfo import ZoneInfoNotFoundError
+
+    _stub_slack()
+    with patch("slack_notifier.ZoneInfo", side_effect=ZoneInfoNotFoundError("x")):
+        result = _call(message_timestamp="2026-04-18T17:22:00Z")
+    assert result["ok"] is True
+    assert len(responses.calls) == 1

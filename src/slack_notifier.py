@@ -9,8 +9,8 @@ Never sends messages to guests. Drafts are for VJ or Maggie to review and
 send manually.
 """
 
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 
@@ -53,6 +53,18 @@ _MAX_TEXT_LEN = 3000
 # Both properties are in Scottsdale; move into per-property KB when a
 # third property with a different tz comes online.
 _DEFAULT_TZ = "America/Phoenix"
+
+# The python3.12 Lambda runtime (Amazon Linux 2023) ships without the system
+# tz database, so ZoneInfo() raises unless the `tzdata` package is bundled.
+# Phoenix has no DST, so a fixed MST offset is an exact fallback.
+_FALLBACK_TZ = timezone(timedelta(hours=-7), "MST")
+
+
+def _get_tz(tz_name: str):
+    try:
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return _FALLBACK_TZ
 
 
 def _truncate(text: str, limit: int = _MAX_TEXT_LEN) -> str:
@@ -97,11 +109,12 @@ def _format_message_time(iso_ts: str, tz_name: str = _DEFAULT_TZ) -> str:
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        local = dt.astimezone(ZoneInfo(tz_name))
+        tz = _get_tz(tz_name)
+        local = dt.astimezone(tz)
     except (ValueError, TypeError):
         return iso_ts
 
-    now_local = datetime.now(ZoneInfo(tz_name))
+    now_local = datetime.now(tz)
     time_part = local.strftime("%-I:%M %p %Z")
     today = now_local.date()
     msg_date = local.date()
