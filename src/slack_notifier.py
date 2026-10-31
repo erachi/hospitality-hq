@@ -141,6 +141,7 @@ def _build_blocks(
     recent_messages: list[dict],
     conversation_summary: str,
     message_timestamp: str,
+    is_inquiry: bool = False,
 ) -> list[dict]:
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
@@ -156,6 +157,11 @@ def _build_blocks(
     local_time = _format_message_time(message_timestamp)
     if local_time:
         prefix_parts.append(local_time)
+    if is_inquiry:
+        # Not booked yet — show the requested dates, since they decide
+        # whether this lead is worth chasing.
+        stay = f"{checkin_date} → {checkout_date}" if checkin_date and checkout_date else ""
+        prefix_parts.append(f"📩 *Inquiry — not booked*{' · ' + stay if stay else ''}")
     prefix_text = " · ".join(prefix_parts)
 
     # ---- 2. Situation: AI 2-bullet summary, or fallback to classifier line ----
@@ -217,6 +223,7 @@ def post_guest_alert(
     recent_messages: list[dict] = None,
     conversation_summary: str = "",
     message_timestamp: str = "",
+    is_inquiry: bool = False,
 ) -> dict:
     """Post a Block Kit guest alert to the Slack channel.
 
@@ -237,6 +244,8 @@ def post_guest_alert(
     # Mobile push-notification fallback — the terse one-liner the OS shows
     # on a locked phone before Block Kit renders.
     fallback_text = f"{urgency_icon} {descriptor} — {property_name}: {summary}"
+    if is_inquiry:
+        fallback_text = f"{urgency_icon} Inquiry · {descriptor} — {property_name}: {summary}"
 
     blocks = _build_blocks(
         guest_name=guest_name,
@@ -253,6 +262,7 @@ def post_guest_alert(
         recent_messages=recent_messages or [],
         conversation_summary=conversation_summary,
         message_timestamp=message_timestamp,
+        is_inquiry=is_inquiry,
     )
 
     response = requests.post(

@@ -70,6 +70,14 @@ Guidelines:
 CRITICAL: This is a DRAFT. The host will review before sending. If unsure about anything, note it in brackets like [HOST: verify this detail]."""
 
 
+INQUIRY_GUIDELINES = """═══ PRE-BOOKING INQUIRY ═══
+This guest has NOT booked yet — they are asking before deciding. The reply shapes whether they book.
+- Answer their question directly and honestly; state house rules plainly but kindly. Never bend a policy (pets, events, occupancy, pricing, discounts) — if they ask for an exception, decline warmly or write [HOST: decide on exception].
+- Briefly highlight something relevant to their trip when it fits naturally; don't oversell.
+- Do NOT share door codes, lockbox details, Wi-Fi credentials, the exact address, or arrival instructions — those are for confirmed guests only.
+- Don't confirm availability or quote prices; mark with [HOST: verify availability/price] if the guest asks."""
+
+
 def classify_message(message_text: str, property_name: str) -> dict:
     """Classify a guest message using Claude Haiku.
 
@@ -178,6 +186,8 @@ def draft_response(
     conversation_history: str = "",
     local_kb_context: str = "",
     thread_logs_context: str = "",
+    is_inquiry: bool = False,
+    party_size: int | None = None,
 ) -> str:
     """Draft a response to a guest message using Claude Sonnet.
 
@@ -189,6 +199,9 @@ def draft_response(
     thread_logs_context (if provided) contains prior internal notes, issues, or
     resolutions logged by the host team in Slack threads on THIS reservation.
     It gives the draft memory of what's already been discussed or fixed.
+
+    is_inquiry marks a pre-booking conversation: the draft is steered toward
+    winning the booking and away from sharing confirmed-guest-only details.
     """
     header = f"""Property: {property_name}
 Guest: {guest_name}
@@ -196,8 +209,14 @@ Check-in: {checkin_date}
 Check-out: {checkout_date}
 Issue type: {classification['category']} ({classification['urgency']} urgency)
 Issue summary: {classification['summary']}"""
+    if is_inquiry:
+        header += "\nBooking status: INQUIRY — not booked yet"
+        if party_size:
+            header += f"\nParty size: {party_size}"
 
     sections = [header]
+    if is_inquiry:
+        sections.append(INQUIRY_GUIDELINES)
 
     # Local KB — highest priority. Included first so Claude anchors on it.
     if local_kb_context.strip():

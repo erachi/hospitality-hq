@@ -78,6 +78,7 @@ def lambda_handler(event, context):
     # Track stats for this run
     stats = {
         "reservations_checked": 0,
+        "inquiries_checked": 0,
         "new_messages_found": 0,
         "alerts_posted": 0,
         "errors": [],
@@ -102,6 +103,31 @@ def lambda_handler(event, context):
                 logger.error(error_msg)
                 stats["errors"].append(error_msg)
 
+        # Step 2: Pre-booking inquiries. Separate resource from reservations,
+        # so they need their own fetch. Only threads with activity inside the
+        # lookback window — older ones can't contain alertable messages.
+        # A failure here must not lose the reservation alerts above.
+        try:
+            since = datetime.now(timezone.utc) - timedelta(hours=_get_lookback_hours())
+            inquiries = hospitable.get_recent_inquiries(PROPERTY_UUIDS, since)
+            stats["inquiries_checked"] = len(inquiries)
+            logger.info(f"Found {len(inquiries)} inquiries with recent activity")
+        except Exception as e:
+            error_msg = f"Error fetching inquiries: {str(e)}"
+            logger.error(error_msg)
+            stats["errors"].append(error_msg)
+            inquiries = []
+
+        for inquiry in inquiries:
+            try:
+                process_inquiry(
+                    inquiry, hospitable, tracker, property_cache, stats
+                )
+            except Exception as e:
+                error_msg = f"Error processing inquiry {inquiry.get('id', 'unknown')}: {str(e)}"
+                logger.error(error_msg)
+                stats["errors"].append(error_msg)
+
     except Exception as e:
         error_msg = f"Fatal error in monitor: {str(e)}"
         logger.error(error_msg)
@@ -109,6 +135,7 @@ def lambda_handler(event, context):
 
     logger.info(
         f"Monitor complete: {stats['reservations_checked']} reservations, "
+        f"{stats['inquiries_checked']} inquiries, "
         f"{stats['new_messages_found']} new messages, "
         f"{stats['alerts_posted']} alerts posted, "
         f"{len(stats['errors'])} errors"
@@ -158,6 +185,111 @@ def process_reservation(
 
     # Fetch messages for this reservation
     messages = hospitable.get_reservation_messages(res_uuid)
+
+    process_conversation(
+        conversation_id=res_uuid,
+        property_id=property_id,
+        property_name=property_name,
+        guest_name=guest_name,
+        checkin=checkin,
+        checkout=checkout,
+        booking_source=booking_source,
+        reservation_status=reservation_status,
+        messages=messages,
+        hospitable=hospitable,
+        tracker=tracker,
+        property_cache=property_cache,
+        stats=stats,
+    )
+
+
+def process_inquiry(
+    inquiry: dict,
+    hospitable: HospitableClient,
+    tracker: StateTracker,
+    property_cache: dict,
+    stats: dict,
+) -> None:
+    """Process a pre-booking inquiry thread for new guest messages.
+
+    Inquiries live under /inquiries, not /reservations, and carry
+    arrival_date/departure_date plus a party size instead of check_in/out.
+    The inquiry UUID doubles as the conversation id for dedup and threads.
+    """
+    inq_uuid = inquiry.get("id", "")
+    detail = hospitable.get_inquiry_detail(inq_uuid)
+
+    prop = detail.get("properties") or {}
+    property_id = inquiry.get("property_id") or prop.get("id", "")
+    property_name = (
+        get_property_name(property_id)
+        or prop.get("name")
+        or "Unknown Property"
+    )
+
+    process_conversation(
+        conversation_id=inq_uuid,
+        property_id=property_id,
+        property_name=property_name,
+        guest_name=inquiry_guest_name(detail),
+        checkin=_date_only(detail.get("arrival_date", "")),
+        checkout=_date_only(detail.get("departure_date", "")),
+        booking_source=detail.get("platform", ""),
+        reservation_status="inquiry",
+        messages=inquiry_messages(detail),
+        hospitable=hospitable,
+        tracker=tracker,
+        property_cache=property_cache,
+        stats=stats,
+        is_inquiry=True,
+        party_size=(detail.get("guests") or {}).get("total"),
+    )
+
+
+def inquiry_guest_name(inquiry: dict) -> str:
+    """Inquiry guests carry first/last name only — no full_name."""
+    guest = inquiry.get("guest") or {}
+    name = " ".join(
+        p for p in (guest.get("first_name"), guest.get("last_name")) if p
+    )
+    return name or "Guest"
+
+
+def inquiry_messages(inquiry: dict) -> list[dict]:
+    """The inquiry's message thread, oldest first.
+
+    The inquiry detail endpoint nests messages newest-first; everything
+    downstream (answered-check, summaries) expects chronological order.
+    """
+    messages = inquiry.get("messages") or []
+    return sorted(messages, key=lambda m: m.get("created_at") or "")
+
+
+def process_conversation(
+    *,
+    conversation_id: str,
+    property_id: str,
+    property_name: str,
+    guest_name: str,
+    checkin: str,
+    checkout: str,
+    booking_source: str,
+    reservation_status: str,
+    messages: list[dict],
+    hospitable: HospitableClient,
+    tracker: StateTracker,
+    property_cache: dict,
+    stats: dict,
+    is_inquiry: bool = False,
+    party_size: Optional[int] = None,
+) -> None:
+    """Alert on unanswered guest messages in one conversation thread.
+
+    Shared by reservations and inquiries. `conversation_id` is the
+    reservation or inquiry UUID — the DynamoDB partition key for dedup and
+    the id thread replies are routed back to.
+    """
+    res_uuid = conversation_id
 
     if not messages:
         return
@@ -210,7 +342,7 @@ def process_reservation(
 
     stats["new_messages_found"] += len(new_guest_messages)
     logger.info(
-        f"Found {len(new_guest_messages)} new messages for reservation {res_uuid} ({guest_name} at {property_name})"
+        f"Found {len(new_guest_messages)} new messages for {'inquiry' if is_inquiry else 'reservation'} {res_uuid} ({guest_name} at {property_name})"
     )
 
     # Load property context (cached per property)
@@ -263,6 +395,8 @@ def process_reservation(
             checkout_date=checkout,
             classification=classification,
             conversation_history=conversation_history,
+            is_inquiry=is_inquiry,
+            party_size=party_size,
         )
 
         # Last 5 messages as context in the alert
@@ -293,6 +427,7 @@ def process_reservation(
             recent_messages=recent_messages,
             conversation_summary=thread_summary,
             message_timestamp=msg_time,
+            is_inquiry=is_inquiry,
         )
 
         if slack_result.get("ok"):
@@ -312,6 +447,7 @@ def process_reservation(
                         property_id=property_id,
                         property_name=property_name,
                         guest_name=guest_name,
+                        conversation_type="inquiry" if is_inquiry else "reservation",
                     )
             except Exception as e:
                 logger.warning(f"Could not save thread mapping for message {msg_id}: {e}")

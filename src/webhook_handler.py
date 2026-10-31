@@ -22,7 +22,13 @@ from hospitable_client import HospitableClient
 from state_tracker import StateTracker, message_dedup_key
 from classifier import classify_message, draft_response, summarize_conversation
 from slack_notifier import post_guest_alert
-from handler import load_property_context, build_conversation_summary, _date_only
+from handler import (
+    load_property_context,
+    build_conversation_summary,
+    inquiry_guest_name,
+    inquiry_messages,
+    _date_only,
+)
 from knowledge_base_loader import get_property_name
 from thread_mapping import ThreadMapping
 from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
@@ -78,10 +84,18 @@ def webhook_handler(event, context):
     # Both paths now derive the same dedup key from fields both payloads carry
     # (created_at + body hash), via message_dedup_key().
     webhook_id = payload.get("id", "")
-    reservation_id = data.get("reservation_id", "")
+    reservation_id = data.get("reservation_id") or ""
+
+    # Pre-booking inquiry messages arrive with reservation_id: null; the
+    # inquiry UUID is in conversation_id. Previously these were dropped as
+    # "missing ids", so inquiries never reached Slack.
+    is_inquiry = False
+    if not reservation_id and data.get("conversation_id"):
+        reservation_id = data["conversation_id"]
+        is_inquiry = True
 
     if not reservation_id:
-        logger.warning(f"Missing reservation_id (webhook event {webhook_id})")
+        logger.warning(f"Missing reservation_id and conversation_id (webhook event {webhook_id})")
         return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "missing ids"})}
 
     dedup_key = message_dedup_key(reservation_id, data)
@@ -98,6 +112,7 @@ def webhook_handler(event, context):
     try:
         result = process_webhook_message(
             data, payload, tracker, reservation_id, webhook_id, dedup_key,
+            is_inquiry=is_inquiry,
         )
         return result
     except Exception as e:
@@ -115,22 +130,52 @@ def webhook_handler(event, context):
 def process_webhook_message(
     data: dict, payload: dict, tracker: StateTracker,
     reservation_id: str, webhook_id: str, dedup_key: str,
+    is_inquiry: bool = False,
 ) -> dict:
-    """Process a single webhook guest message through the classify/draft/notify pipeline."""
+    """Process a single webhook guest message through the classify/draft/notify pipeline.
+
+    `reservation_id` is the inquiry UUID when is_inquiry is set.
+    """
     hospitable = HospitableClient()
+    party_size = None
 
-    # Fetch reservation details for context
-    reservation = hospitable.get_reservation_detail(reservation_id)
-    guest = reservation.get("guest", {})
-    guest_name = guest.get("full_name", guest.get("first_name", "Guest"))
+    if is_inquiry:
+        inquiry = hospitable.get_inquiry_detail(reservation_id)
+        guest_name = inquiry_guest_name(inquiry)
+        # On inquiries `properties` is a single object, not an array.
+        first_property = inquiry.get("properties") or {}
+        checkin = _date_only(inquiry.get("arrival_date", ""))
+        checkout = _date_only(inquiry.get("departure_date", ""))
+        booking_source = inquiry.get("platform", "") or data.get("platform", "")
+        reservation_status = "inquiry"
+        party_size = (inquiry.get("guests") or {}).get("total")
+        messages = inquiry_messages(inquiry)
+    else:
+        # Fetch reservation details for context
+        reservation = hospitable.get_reservation_detail(reservation_id)
+        guest = reservation.get("guest", {})
+        guest_name = guest.get("full_name", guest.get("first_name", "Guest"))
 
-    # Hospitable's /reservations/{id} response doesn't carry property_id or
-    # property_name at the top level. With `include=properties` we get a
-    # `properties` array — take the first entry. Then prefer our local KB's
-    # canonical name (same logic the polling handler uses) so the Slack alert
-    # shows "Villa Bougainvillea" rather than an Airbnb public name.
-    properties = reservation.get("properties") or []
-    first_property = properties[0] if properties else {}
+        # Hospitable's /reservations/{id} response doesn't carry property_id or
+        # property_name at the top level. With `include=properties` we get a
+        # `properties` array — take the first entry.
+        properties = reservation.get("properties") or []
+        first_property = properties[0] if properties else {}
+
+        # Dates live under check_in/check_out as ISO-8601 timestamps.
+        checkin = _date_only(reservation.get("check_in") or reservation.get("arrival_date", ""))
+        checkout = _date_only(reservation.get("check_out") or reservation.get("departure_date", ""))
+        booking_source = (
+            reservation.get("platform", "")
+            or reservation.get("source", "")
+            or data.get("platform", "")
+        )
+        reservation_status = reservation.get("status", "")
+        messages = hospitable.get_reservation_messages(reservation_id)
+
+    # Prefer our local KB's canonical name (same logic the polling handler
+    # uses) so the Slack alert shows "Villa Bougainvillea" rather than an
+    # Airbnb public name.
     property_id = first_property.get("id", "")
     property_name = (
         get_property_name(property_id)
@@ -138,21 +183,10 @@ def process_webhook_message(
         or "Unknown Property"
     )
 
-    # Dates live under check_in/check_out as ISO-8601 timestamps.
-    checkin = _date_only(reservation.get("check_in") or reservation.get("arrival_date", ""))
-    checkout = _date_only(reservation.get("check_out") or reservation.get("departure_date", ""))
-    booking_source = (
-        reservation.get("platform", "")
-        or reservation.get("source", "")
-        or data.get("platform", "")
-    )
-    reservation_status = reservation.get("status", "")
-
     # Load property context
     prop_context = load_property_context(hospitable, property_id)
 
     # Build conversation history
-    messages = hospitable.get_reservation_messages(reservation_id)
     conversation_history = build_conversation_summary(messages)
 
     # Get the message text from the webhook payload
@@ -191,6 +225,8 @@ def process_webhook_message(
         checkout_date=checkout,
         classification=classification,
         conversation_history=conversation_history,
+        is_inquiry=is_inquiry,
+        party_size=party_size,
     )
 
     # Last 5 messages as context in the alert
@@ -219,6 +255,7 @@ def process_webhook_message(
         recent_messages=recent_messages,
         conversation_summary=thread_summary,
         message_timestamp=data.get("created_at", ""),
+        is_inquiry=is_inquiry,
     )
 
     if slack_result.get("ok"):
@@ -234,6 +271,7 @@ def process_webhook_message(
                     property_id=property_id,
                     property_name=property_name,
                     guest_name=guest_name,
+                    conversation_type="inquiry" if is_inquiry else "reservation",
                 )
         except Exception as e:
             logger.warning(f"Could not save thread mapping for webhook event {webhook_id}: {e}")

@@ -34,7 +34,7 @@ from thread_logs import (
 from knowledge_base_loader import load_kb, format_for_claude as format_kb
 from hospitable_client import HospitableClient
 from slack_qa import answer as qa_answer
-from handler import build_conversation_summary, load_property_context
+from handler import build_conversation_summary, inquiry_messages, load_property_context
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -272,12 +272,20 @@ def _handle_question(
         prop_context = load_property_context(hospitable, property_id) if property_id else {}
         hospitable_kb_text = prop_context.get("knowledge_hub", "") or ""
 
-        res = hospitable.get_reservation_detail(reservation_uuid) if reservation_uuid else {}
-        reservation_summary = _summarize_reservation(res, fallback_guest=guest_name)
+        # Mappings written before inquiry support have no conversation_type.
+        if mapping.get("conversation_type") == "inquiry":
+            res = hospitable.get_inquiry_detail(reservation_uuid) if reservation_uuid else {}
+            reservation_summary = _summarize_reservation(res, fallback_guest=guest_name)
+            if res:
+                reservation_summary += "\nStatus: inquiry (not booked yet)"
+                conversation_history = build_conversation_summary(inquiry_messages(res))
+        else:
+            res = hospitable.get_reservation_detail(reservation_uuid) if reservation_uuid else {}
+            reservation_summary = _summarize_reservation(res, fallback_guest=guest_name)
 
-        if reservation_uuid:
-            messages = hospitable.get_reservation_messages(reservation_uuid)
-            conversation_history = build_conversation_summary(messages)
+            if reservation_uuid:
+                messages = hospitable.get_reservation_messages(reservation_uuid)
+                conversation_history = build_conversation_summary(messages)
     except Exception as e:
         logger.warning(f"Hospitable enrichment failed: {e}")
 
