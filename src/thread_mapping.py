@@ -35,8 +35,14 @@ class ThreadMapping:
         property_id: str,
         property_name: str,
         guest_name: str,
+        conversation_type: str = "reservation",
     ) -> None:
-        """Record a new thread → reservation mapping."""
+        """Record a new thread → reservation mapping.
+
+        `reservation_uuid` holds an inquiry UUID when conversation_type is
+        "inquiry" — the thread handler uses the type to pick the right
+        Hospitable endpoint.
+        """
         if not thread_ts or not reservation_uuid:
             logger.warning(
                 f"Skipping mapping put: thread_ts={thread_ts!r}, "
@@ -51,6 +57,7 @@ class ThreadMapping:
                     "property_id": property_id or "",
                     "property_name": property_name or "",
                     "guest_name": guest_name or "",
+                    "conversation_type": conversation_type,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "ttl": int(time.time()) + _TTL_SECONDS,
                 }

@@ -9,7 +9,7 @@ Three workflows for short-term rental ops, sharing a Slack app and AWS stack:
 ## What This Does
 
 ### Guest monitoring
-Monitors guest conversations across properties, classifies issues by urgency, drafts AI-powered responses, and posts them to Slack for human approval. **No messages are ever sent to guests without explicit approval from VJ or Maggie.**
+Monitors guest conversations across properties, classifies issues by urgency, drafts AI-powered responses, and posts them to Slack for human approval. Covers both booked reservations and pre-booking inquiries (inquiry alerts are tagged "📩 Inquiry — not booked", and their drafts never include access codes, Wi-Fi, or the exact address). **No messages are ever sent to guests without explicit approval from VJ or Maggie.**
 
 ### Task management
 Internal tracker used by VJ and Maggie only. `/task` opens a modal; cards post to `#tasks` with Mark-done / Start / Block / Swap-assignee buttons; thread replies become comments; a daily cron DMs overdue + due-today digests. Tasks live as JSON objects in S3 (versioning on). See `TASKS_CHEATSHEET.md` for user-facing docs.

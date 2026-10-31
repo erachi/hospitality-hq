@@ -80,6 +80,53 @@ class HospitableClient:
 
         return all_reservations
 
+    def get_recent_inquiries(self, property_uuids: list[str], since: datetime) -> list[dict]:
+        """Fetch inquiries (pre-booking conversations) with thread activity since `since`.
+
+        Inquiries are a separate resource from reservations — a guest asking
+        about a stay before booking never appears under /reservations.
+        `since` must be UTC; the API wants "Y-m-d H:i:s".
+        """
+        last_message_at = since.strftime("%Y-%m-%d %H:%M:%S")
+        all_inquiries = []
+
+        for prop_uuid in property_uuids:
+            page = 1
+            while True:
+                data = self._get(
+                    "/inquiries",
+                    params={
+                        "properties[]": prop_uuid,
+                        "last_message_at": last_message_at,
+                        "include": "guest",
+                        "per_page": 100,
+                        "page": page,
+                    },
+                )
+                inquiries = data.get("data", [])
+                for inq in inquiries:
+                    inq["property_id"] = prop_uuid
+                all_inquiries.extend(inquiries)
+
+                if data.get("meta", {}).get("current_page", 1) >= data.get("meta", {}).get("last_page", 1):
+                    break
+                page += 1
+
+        return all_inquiries
+
+    def get_inquiry_detail(self, inquiry_uuid: str) -> dict:
+        """Fetch an inquiry with guest, property, and its message thread.
+
+        Messages come back nested under `messages`, newest first; callers
+        should use get_inquiry_messages() for a chronological list.
+        `properties` is a single object here (not an array as on reservations).
+        """
+        data = self._get(
+            f"/inquiries/{inquiry_uuid}",
+            params={"include": "guest,properties,messages"},
+        )
+        return data.get("data", {})
+
     def get_reservation_messages(self, reservation_uuid: str) -> list[dict]:
         """Fetch all messages for a reservation thread."""
         data = self._get(
