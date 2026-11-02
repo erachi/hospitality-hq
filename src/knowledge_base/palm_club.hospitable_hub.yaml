@@ -1,0 +1,47 @@
+property:
+  id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570
+  slug: palm_club
+hospitable_snapshot:
+  fetched_at: '2026-11-02T21:12:02Z'
+  source: hospitable_knowledge_hub
+  api_endpoint: /properties/{uuid}/knowledge-hub
+  topics:
+  - name: Access Codes
+    slug: access_codes
+    items:
+    - id: 3731135
+      content: 'To unlock the door:
+
+        • From the outside, press the Home logo and enter the access code
+
+        • From the inside, turn the thumbturn.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources: []
+      updated_at: '2026-02-06T05:17:45.000000Z'
+    - id: 3731136
+      content: 'To lock the door:
+
+        • From the outside, press the Lock logo
+
+        • From the inside, turn the thumbturn.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources: []
+      updated_at: '2026-02-06T05:17:46.000000Z'
+  - name: Arrival
+    slug: arrival
+    items:
+    - id: 3731133
+      content: Check-in instructions will be sent to the guest three days prior to arrival. The guest
+        can message the host anytime through Airbnb before arrival if anything is needed.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources: []
+      updated_at: '2026-02-06T05:17:44.000000Z'

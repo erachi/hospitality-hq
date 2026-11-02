@@ -517,3 +517,18 @@ def test_build_conversation_summary_truncates_long_messages():
 
     assert "..." in summary
     assert len(summary) < 500
+
+
+def test_load_property_context_does_not_fetch_live_hub():
+    """Regression: the live Hospitable Hub fetch was removed. The Hub now
+    reaches the drafter via the sibling snapshot (loaded by
+    knowledge_base_loader), not via a per-request API call."""
+    mock_client = MagicMock()
+    mock_client.get_property.return_value = {"description": "a nice place"}
+
+    context = load_property_context(mock_client, "test-prop-uuid-1")
+
+    mock_client.get_property_knowledge_hub.assert_not_called()
+    # Backward-compat key still present for callers that pass it through.
+    assert context["knowledge_hub"] == ""
+    assert context["description"] == "a nice place"
