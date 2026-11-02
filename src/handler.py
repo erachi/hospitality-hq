@@ -463,44 +463,30 @@ def process_conversation(
 def load_property_context(hospitable: HospitableClient, property_uuid: str) -> dict:
     """Load property context for response drafting.
 
-    Merges three sources, in decreasing order of authority:
-      1. Our curated local KB (src/knowledge_base/<property>.yaml) — authoritative
-      2. Hospitable's Knowledge Hub — supplemental, fills gaps
-      3. Hospitable's property description — lowest priority
+    Two sources, in decreasing order of authority:
+      1. Local KB (src/knowledge_base/<property>.yaml) — authoritative. Includes
+         the Hospitable Hub snapshot (sibling .hospitable_hub.yaml) rendered as
+         a supplemental block, so the Hub still reaches the drafter in its
+         usual tier-5 role.
+      2. Hospitable property description — lowest priority.
+
+    The `knowledge_hub` key is kept empty for backward compat with callers that
+    still pass it to draft_response; the Hub content now flows through
+    local_kb via format_for_claude.
     """
     context = {"description": "", "knowledge_hub": "", "local_kb": ""}
 
-    # Local KB (authoritative)
     try:
         local_kb = load_kb(property_uuid)
         context["local_kb"] = format_for_claude(local_kb)
     except Exception as e:
         logger.warning(f"Could not load local KB for {property_uuid}: {e}")
 
-    # Hospitable property description
     try:
         prop = hospitable.get_property(property_uuid)
         context["description"] = prop.get("description", "")
     except Exception as e:
         logger.warning(f"Could not load property details for {property_uuid}: {e}")
-
-    # Hospitable Knowledge Hub (supplemental)
-    try:
-        kb = hospitable.get_property_knowledge_hub(property_uuid)
-        kb_parts = []
-        topics = kb.get("topics", [])
-        if isinstance(topics, list):
-            for topic in topics:
-                topic_name = topic.get("name", "General")
-                items = topic.get("items", [])
-                if isinstance(items, list):
-                    for item in items:
-                        content = item.get("content", "")
-                        if content:
-                            kb_parts.append(f"[{topic_name}] {content}")
-        context["knowledge_hub"] = "\n".join(kb_parts)
-    except Exception as e:
-        logger.warning(f"Could not load Knowledge Hub for {property_uuid}: {e}")
 
     return context
 

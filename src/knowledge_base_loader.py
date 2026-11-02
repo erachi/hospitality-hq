@@ -33,6 +33,11 @@ UUID_TO_FILENAME = {
 def load_kb(property_id: str) -> dict:
     """Load the knowledge base YAML for a property.
 
+    Also attaches the Hospitable Hub snapshot (sibling file
+    `<slug>.hospitable_hub.yaml`) under `hospitable_snapshot` if present. The
+    snapshot is produced by `scripts/sync_knowledge_base.py` and is a
+    PR-reviewable mirror of what Hospitable's Knowledge Hub holds.
+
     Returns an empty dict if the property is unknown or the file is missing.
     """
     if not property_id:
@@ -47,13 +52,28 @@ def load_kb(property_id: str) -> dict:
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-            return data if isinstance(data, dict) else {}
+            if not isinstance(data, dict):
+                data = {}
     except FileNotFoundError:
         logger.warning(f"Knowledge base file not found: {path}")
-        return {}
+        data = {}
     except yaml.YAMLError as e:
         logger.error(f"Failed to parse knowledge base {path}: {e}")
         return {}
+
+    snapshot_path = os.path.join(_KB_DIR, f"{filename}.hospitable_hub.yaml")
+    try:
+        with open(snapshot_path, "r", encoding="utf-8") as f:
+            snapshot = yaml.safe_load(f) or {}
+        hub = snapshot.get("hospitable_snapshot") if isinstance(snapshot, dict) else None
+        if isinstance(hub, dict):
+            data["hospitable_snapshot"] = hub
+    except FileNotFoundError:
+        pass  # Snapshot is optional — classifier still works without it.
+    except yaml.YAMLError as e:
+        logger.error(f"Failed to parse Hub snapshot {snapshot_path}: {e}")
+
+    return data
 
 
 def get_property_name(property_id: str) -> Optional[str]:
@@ -119,7 +139,38 @@ def format_for_claude(kb: dict) -> str:
                 + "\n\n".join(prec_lines)
             )
 
+    snapshot = kb.get("hospitable_snapshot") or {}
+    hub_block = _render_hub_snapshot(snapshot)
+    if hub_block:
+        parts.append(hub_block)
+
     return "\n\n".join(parts)
+
+
+def _render_hub_snapshot(snapshot: dict) -> str:
+    """Render the Hospitable Hub snapshot as a supplemental block.
+
+    Same priority tier as the live Hub it replaces — supplemental only.
+    """
+    topics = snapshot.get("topics") or []
+    lines = []
+    for topic in topics:
+        if not isinstance(topic, dict):
+            continue
+        topic_name = topic.get("name") or "General"
+        for item in topic.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            content = (item.get("content") or "").strip()
+            if content:
+                lines.append(f"[{topic_name}] {content}")
+    if not lines:
+        return ""
+    fetched_at = snapshot.get("fetched_at") or "unknown"
+    header = (
+        f"═══ HOSPITABLE HUB SNAPSHOT (supplemental; fetched_at {fetched_at}) ═══"
+    )
+    return header + "\n" + "\n".join(lines)
 
 
 def _render_dict(data, indent: int = 0) -> str:

@@ -25,3 +25,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Knowledge-base evaluation reports (on-demand, per-run)
+reports/

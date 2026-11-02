@@ -1,0 +1,422 @@
+property:
+  id: f8236d9d-988a-4192-9d16-2927b0b9ad8e
+  slug: villa_bougainvillea
+hospitable_snapshot:
+  fetched_at: '2026-11-02T21:12:02Z'
+  source: hospitable_knowledge_hub
+  api_endpoint: /properties/{uuid}/knowledge-hub
+  topics:
+  - name: Amenities
+    slug: amenities
+    items:
+    - id: 619082
+      content: 'The firepit uses propane stored in the white table. To operate: turn on the gas, push
+        and hold the igniter button while turning the control knob to LOW. Once ignited, control the temperature
+        with the knob. Turn off the flame and propane after use, and allow the pit to cool before replacing
+        the cover. Troubleshooting steps for the firepit are provided for issues like ignition failure,
+        burner not lighting, black smoke emission, flame blowing out, and sudden gas flow drop.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2025-03-05T11:52:49.000000Z'
+    - id: 619108
+      content: To operate the gas BBQ, turn on the propane, hold down the ignite button, and turn the
+        burners on. Grill tools are stored in the kitchen.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2025-03-05T11:52:49.000000Z'
+    - id: 619138
+      content: The string lights can be turned on using the switch located outside to the right of the
+        sliding glass door under the outlet cover.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2025-03-05T11:52:49.000000Z'
+    - id: 619170
+      content: The volleyball net is secured to the top portion of the poles. To remove, push the metal
+        tabs on the poles below the edge of the net to release the upper portion of the pole. Do not disconnect
+        the net from the upper part of the pole.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2025-03-05T11:52:49.000000Z'
+    - id: 619224
+      content: The first aid kit is located in the drawer of the primary bathroom.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2025-03-05T11:52:50.000000Z'
+    - id: 619266
+      content: Yard toys and an inflatable pump are stored in the deck box outside.
+      original_content: Yard toys and an inflatable pump are stored in the storage crate on the side of
+        the house near the BBQ.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2026-10-28T23:54:10.000000Z'
+    - id: 2655277
+      content: The outdoor movie projector comes with speakers (setup instructions are in the house manual).
+        There are no other built-in or outdoor speakers on the property.
+      original_content: There are no built-in, Bluetooth, or outdoor speakers on the property; guests
+        should bring their own speaker if they want to play music.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:03.000000Z'
+    - id: 3143295
+      content: Pool heating costs $250 for a four-night stay, and the pool will be heated and ready upon
+        arrival.
+      original_content: Pool heating costs $250 for a four-night stay, is added separately through Airbnb
+        (not included in the second payment), and the pool will be heated and ready upon arrival.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:04.000000Z'
+    - id: 4321277
+      content: Extra trash bags are stored in the little white closet in the hallway.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-04-15T14:42:52.000000Z'
+    - id: 4321512
+      content: If guests run out of extra trash bags, the host can drop off more, or guests can purchase
+        some when convenient.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-04-15T14:59:47.000000Z'
+    - id: 4612938
+      content: Guests can request extra dish and hand towels for the kitchen, and the host can adjust
+        or turn off pool heating during the stay to lower the water temperature.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-05-08T19:22:57.000000Z'
+    - id: 4799870
+      content: The property provides plenty of both bath towels and pool towels, as well as essential
+        toiletries including shampoo, conditioner, and body wash.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-05-25T18:11:37.000000Z'
+  - name: Appliances
+    slug: appliances
+    items:
+    - id: 619306
+      content: 'Projector setup instructions: Strap the projector to the stand and set it up behind the
+        bean bags (near the tree is ideal). Use the black extension cord for the speakers and the grey
+        one for the projector. Turn on the projector using the remote or button on the projector. Focus
+        the lens for a clear picture. Use the main remote to navigate to Bluetooth to pair the speakers.
+        You can screen mirror from your device or use Roku. Navigate to HDMI to access Roku and use the
+        Roku remote to access apps. When finished, please bring the projector, stand, and accessories
+        back inside. They are kept in the master bedroom closet.'
+      original_content: 'Projector setup instructions: Strap the projector to the stand and set it up
+        behind the bean bags (near the tree is ideal). Use the black extension cord for the speakers and
+        the grey one for the projector. Turn on the projector using the remote or button on the projector.
+        Focus the lens for a clear picture. Use the main remote to navigate to Bluetooth to pair the speakers.
+        You can screen mirror from your device or use Roku. Navigate to HDMI to access Roku and use the
+        Roku remote to access apps. Return the projector, stand, and accessories to the master bedroom
+        closet after use.'
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2026-10-28T23:54:10.000000Z'
+    - id: 3360062
+      content: If the washer makes a loud grating noise, pause the cycle, redistribute the items evenly
+        inside the drum, and restart; if the noise persists, stop the cycle to prevent damage and contact
+        the host.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2025-12-25T21:43:59.000000Z'
+  - name: Check-in Policies
+    slug: check_in_policies
+    items:
+    - id: 1850219
+      content: Early check-in is available for a fee of $75 for up to two hours early or $150 for more
+        than two hours early. The fee is processed through Airbnb after the guest completes the booking.
+        Guests can request early check-in by sharing their desired arrival time, and the host will confirm
+        availability closer to the date based on other guests’ departure times and our cleaning and QA
+        teams’ schedules.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-04-11T21:23:34.000000Z'
+    - id: 2509047
+      content: Guests will receive their personalized check-in details a couple of days before their arrival.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2025-09-18T05:34:51.000000Z'
+    - id: 4286406
+      content: Early luggage storage isn't available at the property. Luggage storage services such as
+        Bounce near the airport can help, and the host will let guests know if the house becomes available
+        earlier.
+      original_content: Guests cannot drop off luggage before the official check-in time; guests should
+        use local luggage storage services such as Bounce near the airport, and the host will notify them
+        if the house becomes available earlier.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:08.000000Z'
+    - id: 4801216
+      content: Guests should update the number of guests on their reservation to ensure the host can prepare
+        the home appropriately. To do this, open your reservation request, select “Edit,” and adjust the
+        guest count without canceling. If that doesn’t work, the host can accept your request first and
+        then you can update the guest count afterward.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-07-25T14:36:34.000000Z'
+    - id: 6595592
+      content: Late check-out is not offered. If guests need more time, booking an extra night is the
+        best option.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-10-28T23:54:26.000000Z'
+  - name: Check-out Procedures
+    slug: check_out_procedures
+    items:
+    - id: 4246652
+      content: Before check-out, guests are encouraged to put used dishes in the sink, gather used towels
+        in the bathroom, put trash and recycling in the indoor bins, and turn off the lights and AC. Please
+        double check that the fire pit and grill propane is off, make sure the projector is inside, and
+        return outdoor games to the deck box. There is no need to strip beds or start laundry. The coffee
+        bar includes a machine compatible with Keurig and other pods as well as a regular drip coffee
+        maker.
+      original_content: Guests should start the dishwasher if there are any dirty dishes and take out
+        the trash before checking out, but they do not need to strip beds or start laundry. The coffee
+        bar includes a machine compatible with Keurig and other pods as well as a regular drip coffee
+        maker.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:05.000000Z'
+    - id: 5159220
+      content: Guests may leave leftover non-alcoholic beverages (water, Gatorades, seltzers) in the fridge
+        at check-out for the host to use.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-06-28T13:20:02.000000Z'
+  - name: Guest Reimbursements
+    slug: guest_reimbursements
+    items:
+    - id: 5140731
+      content: The host reimburses guests for reasonable out-of-pocket expenses incurred due to property
+        issues and may waive applicable fees accordingly.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-06-26T04:25:26.000000Z'
+  - name: Maintenance
+    slug: maintenance
+    items:
+    - id: 2409255
+      content: The breaker panel is located by the grill, and guests can check it to see if any breakers
+        have tripped and reset them if comfortable.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2025-09-06T00:56:08.000000Z'
+    - id: 4490328
+      content: The host’s maintenance team may request brief access during your stay to address any repair
+        or touch-up, and they will always confirm with you before stopping by.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-04-30T18:47:15.000000Z'
+    - id: 5139907
+      content: If guests experience cooling issues, the host will immediately contact the HVAC technician
+        and property manager to dispatch someone quickly to lower the temperature.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-06-26T01:33:03.000000Z'
+  - name: Rules & Policies
+    slug: rules_policies
+    items:
+    - id: 2339431
+      content: Smoking, including vaping and e-cigarettes, is not allowed anywhere on the property.
+      original_content: Vaping is allowed in the backyard away from windows and entrances, but vaping
+        indoors is prohibited, and smoking any substance that produces ash is not allowed anywhere on
+        the property.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:02.000000Z'
+    - id: 2817873
+      content: There are no additional tables or chairs beyond the outdoor table and dining table shown
+        in the photos. If you're decorating, free-standing decor works best, and please skip tape, confetti,
+        and glitter.
+      original_content: There are no additional tables or chairs beyond the outdoor table and dining table
+        shown in the photos; guests should provide their own extra seating, and only free-standing decorations
+        are allowed with no confetti or glitter.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:06.000000Z'
+    - id: 4289700
+      content: The property features a pool, a private volleyball court, and an outdoor movie theater.
+        Quiet hours are 10 PM to 8 AM.
+      original_content: The property features a pool, a private volleyball court, and an outdoor movie
+        theater, and enforces quiet hours from 10 PM to 8 AM during which music outdoors is allowed but
+        outside speakers or DJs are prohibited.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:07.000000Z'
+    - id: 4340543
+      content: The property has a noise decibel monitor that measures sound levels and does not record
+        audio.
+      original_content: The property has an outdoor noise monitor that alerts the host if noise levels
+        exceed neighborhood regulations.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:09.000000Z'
+  - name: Safety Features
+    slug: safety_features
+    items:
+    - id: 5123582
+      content: The home is equipped with carbon monoxide detectors and smoke detectors.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-06-24T13:50:47.000000Z'
+  - name: TV/Streaming
+    slug: tv_streaming
+    items:
+    - id: 619048
+      content: Living room, bunk room, and back bedroom TVs are set up to go directly into guest mode
+        using Roku remotes only. For the green room and second-to-back bedroom TVs, turn them on with
+        the TV remote, switch to HDMI, and then use the Roku remote to access guest mode.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - CooperAnderson House 5120.docx.pdf
+      updated_at: '2025-03-05T11:52:48.000000Z'
+  - name: Vendor Policies
+    slug: vendor_policies
+    items:
+    - id: 2060513
+      content: Vendors such as private chefs, photographers, and yoga instructors are welcome. Please
+        message the host ahead of time, and services that wrap up before 10 PM work best. DJs and entertainers
+        aren't a fit for this home. The property accommodates up to 16 guests and welcomes bachelorette
+        groups, provided the house rules are followed.
+      original_content: All vendor activities, including private chefs, require proof of liability insurance,
+        which can be submitted by taking a screenshot and sharing it directly in the chat. All vendor
+        services must conclude by 10 PM to adhere to quiet hours. Cabana boys, entertainers, or similar
+        services are not allowed on the property; guests should refer to the house rules for a list of
+        approved vendor types. The property accommodates up to 16 guests and welcomes bachelorette groups,
+        provided house rules are followed.
+      is_edited: true
+      state: ready
+      last_updated_via: mcp
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-28T23:54:07.000000Z'
+    - id: 4374012
+      content: For vendors arriving before check-in time, they can use the door code to let themselves
+        in. A co-host assistant can also be arranged to meet them and show them around, but this service
+        is optional.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-04-28T17:32:10.000000Z'
+    - id: 6618394
+      content: Vendors can list Magdalena Cooper as the property management company name on their certificate
+        of insurance.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-10-30T05:20:18.000000Z'
