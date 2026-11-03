@@ -25,10 +25,10 @@ static:
     access: Landscapers and pool technicians access the property via the side gate — they do NOT enter
       the house.
   quiet_hours:
-    hours: 10 PM to 7 AM
-    scope: Includes outdoor areas and the game room karaoke system.
-    reason: Respect for our neighbors.
-    enforcement: Please keep noise levels low during these hours.
+    hours: 10 PM to 8 AM
+    scope: Includes outdoor areas and the karaoke system.
+    reason: Respect for our neighbors who have work and school in the morning.
+    enforcement: Enforced by the city.
   pool:
     heating:
       advance_notice: At least 48 hours
@@ -70,14 +70,15 @@ static:
   game_room:
     amenities:
     - Pool table
-    - Karaoke machine
     rules:
     - Turn off all table lamps when finished.
-    - Be mindful of quiet hours when using the karaoke system.
   karaoke:
-    location: Game room (machine + microphones)
+    location: Garage (machine + microphones)
     connectivity: Bluetooth enabled — instructions included with the machine.
-    restriction: Not to be used during quiet hours (10 PM – 7 AM).
+    restriction: Not to be used during quiet hours (10 PM – 8 AM).
+  led_signs:
+    location: One in each respective bedroom; each has its own remote stored in the same room.
+    instruction: Please turn the LED signs off at the end of each day using the room's remote.
   get_ready_room:
     description: A dedicated space for guests to prepare for events, nights out, or special occasions.
     etiquette: Please treat it with care.
@@ -215,8 +216,8 @@ dynamic:
     last_seen: '2026-04-18'
   - topic: quiet_hours
     question: What are the quiet hours?
-    answer: Quiet hours are from 10 PM to 7 AM. This applies to all outdoor areas and the game room karaoke
-      system.
+    answer: Quiet hours are from 10 PM to 8 AM and are enforced by the city. This applies to all outdoor
+      areas and the karaoke system.
     source_reservations:
     - 2c18536f-50f8-4578-a42f-f79ee9f705f9
     last_seen: '2026-04-18'
