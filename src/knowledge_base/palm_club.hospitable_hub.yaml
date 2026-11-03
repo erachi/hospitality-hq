@@ -2,7 +2,7 @@ property:
   id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570
   slug: palm_club
 hospitable_snapshot:
-  fetched_at: '2026-11-02T21:12:02Z'
+  fetched_at: '2026-11-03T01:13:40Z'
   source: hospitable_knowledge_hub
   api_endpoint: /properties/{uuid}/knowledge-hub
   topics:
@@ -33,6 +33,107 @@ hospitable_snapshot:
       last_updated_via: null
       sources: []
       updated_at: '2026-02-06T05:17:46.000000Z'
+  - name: Amenities
+    slug: amenities
+    items:
+    - id: 6675951
+      content: 'The outdoor grill is connected to natural gas (no propane needed). To operate: push and
+        turn each burner knob counterclockwise to the 9 o''clock position, then press the ignite button
+        on the right side. Grill tools are stored in the kitchen drawer.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:30:23.000000Z'
+    - id: 6675970
+      content: 'The large fire pit is connected to natural gas. To light it: turn the silver knob counterclockwise
+        until you hear the gas flowing, then use the long lighter (stored in the kitchen drawer with the
+        BBQ utensils) to ignite the flame. Please ensure the fire pit is fully turned off after use.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:33:53.000000Z'
+    - id: 6675971
+      content: String lights above the outdoor dining table are controlled by the switch near the sliding
+        glass door. String lights around the hot tub are controlled by the switch on the left side of
+        the pergola. All other outdoor lights turn on automatically at sunset.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:33:54.000000Z'
+    - id: 6675972
+      content: LED signs in the bedrooms are each controlled by their own remote, stored in the same room.
+        Please turn the signs off at the end of each day.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:33:55.000000Z'
+    - id: 6675973
+      content: A pickleball court is available for guests. Paddles are stored in the laundry room and
+        extra pickleballs are in the first drawer of the laundry room. Please return paddles to the laundry
+        room after use and be mindful of neighbors during early morning or late night play.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:33:56.000000Z'
+    - id: 6675974
+      content: The electric pump for pool floats and inflatables is in the top cabinet of the laundry
+        room.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:33:57.000000Z'
+    - id: 6675975
+      content: The game room has a pool table. The karaoke machine and microphones are kept in the garage;
+        the machine is Bluetooth-enabled and instructions are included with it. Karaoke is not to be used
+        during quiet hours (10 PM to 8 AM).
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:33:59.000000Z'
+    - id: 6675976
+      content: Pool floats are stored in the deck box outside. Please return them to the deck box after
+        use and deflate them so they remain in good condition for future guests.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:34:00.000000Z'
+    - id: 6676081
+      content: Outdoor games available on the property include pickleball, cornhole, Connect 4, and pool
+        volleyball.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:34:22.000000Z'
+  - name: Appliances
+    slug: appliances
+    items:
+    - id: 6675952
+      content: All TVs are Roku-enabled. On first use, enter your check-out date and sign into your own
+        streaming apps — you will be automatically signed out on the check-out date.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:30:29.000000Z'
   - name: Arrival
     slug: arrival
     items:
@@ -45,3 +146,164 @@ hospitable_snapshot:
       last_updated_via: null
       sources: []
       updated_at: '2026-02-06T05:17:44.000000Z'
+  - name: Check-in Policies
+    slug: check_in_policies
+    items:
+    - id: 6675955
+      content: Check-in is available any time after 4:00 PM. Earlier check-in must be mutually agreed
+        upon in advance with the host.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:30:42.000000Z'
+  - name: Check-out Procedures
+    slug: check_out_procedures
+    items:
+    - id: 6675956
+      content: Standard checkout is at 11:00 AM. Late checkout until 2:00 PM may be available depending
+        on the cleaning team's schedule and may include a small fee. Please request early to confirm.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:30:56.000000Z'
+    - id: 6676087
+      content: 'Checkout steps: place used towels and washcloths on the bathroom floor and bring pool
+        towels in from outside; leave sheets and comforters on the beds as-is; dispose of trash in the
+        outdoor city trash cans (do not place plastic bags in recycling); empty the outdoor grill of food
+        or trash and ensure it is off (no hot ashes in trash cans); turn off all lights and ensure the
+        stove is off; return any rearranged furniture to its original location; double-check for personal
+        belongings; and lock all doors, including sliding doors.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:36:57.000000Z'
+  - name: House Rules
+    slug: house_rules
+    items:
+    - id: 6676801
+      content: Quiet hours are 10 PM to 8 AM. They are enforced by the city and apply to all outdoor areas
+        as well as the karaoke system.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-03T01:12:31.000000Z'
+    - id: 6676802
+      content: Pets are not allowed at the property.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-03T01:12:37.000000Z'
+    - id: 6676803
+      content: 'Pool rules: no glass in or around the pool area; no diving; children must be supervised
+        at all times; please rinse off lotions or sunscreen before entering when possible; please return
+        and deflate pool floats after use.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-03T01:12:39.000000Z'
+    - id: 6676804
+      content: 'Hot tub rules: no glass in or around the hot tub; please rinse your feet before entering;
+        avoid lotions, oils, or sunscreen in the water; keep the cover closed when not in use; children
+        must be supervised at all times.'
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-03T01:12:42.000000Z'
+    - id: 6676805
+      content: Please do not unplug or remove the pool vacuum — it keeps the pool clean for your stay.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-03T01:12:46.000000Z'
+  - name: Maintenance
+    slug: maintenance
+    items:
+    - id: 6675958
+      content: Landscaping and pool servicing both occur every Tuesday. Service providers access the property
+        via the side gate and do not enter the house.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:31:15.000000Z'
+  - name: Parking
+    slug: parking
+    items:
+    - id: 6675959
+      content: The driveway accommodates 2 vehicles. Street parking is not permitted — all vehicles must
+        be parked in the driveway during the stay.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:31:51.000000Z'
+  - name: Safety Features
+    slug: safety_features
+    items:
+    - id: 6675954
+      content: Fire extinguishers are located next to the outdoor grill and under the kitchen sink.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:30:41.000000Z'
+    - id: 6676082
+      content: The first-aid kit is in the top cabinet of the laundry room.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:34:23.000000Z'
+    - id: 6676084
+      content: Exterior security cameras are installed outside the home. There are no cameras inside.
+        Noise-monitoring devices may be present to ensure quiet hours and occupancy limits are respected;
+        they do not record conversations.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:35:33.000000Z'
+  - name: Trash
+    slug: trash
+    items:
+    - id: 6675960
+      content: City trash and recycling collection occurs on Mondays and Fridays. Please do NOT place
+        plastic bags in the recycling bin.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:32:33.000000Z'
+  - name: Wi-Fi
+    slug: wi_fi
+    items:
+    - id: 6675950
+      content: The Wi-Fi network is "Moreland" and the password is "Welcome7426!!".
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-02T23:29:35.000000Z'
