@@ -9,12 +9,32 @@ Never sends messages to guests. Drafts are for VJ or Maggie to review and
 send manually.
 """
 
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 
 from config import get_slack_bot_token, SLACK_CHANNEL_ID
+
+
+# `[HOST: ...]` notes are host-only annotations the drafter uses to flag
+# uncertainty. They must not reach guests, so we split them out of the draft
+# body and render them in a separate Slack block labeled accordingly.
+_HOST_NOTE_RE = re.compile(r"\[HOST:\s*([^\]]+)\]")
+
+
+def _split_host_notes(draft: str) -> tuple[str, list[str]]:
+    """Return (cleaned_draft, [note_text, ...]). Non-greedy, single-line."""
+    if not draft:
+        return "", []
+    notes = [m.group(1).strip() for m in _HOST_NOTE_RE.finditer(draft)]
+    cleaned = _HOST_NOTE_RE.sub("", draft)
+    # Removing a note mid-sentence leaves artefacts; collapse them.
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n[ \t]+", "\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip(), notes
 
 
 URGENCY_EMOJI = {
@@ -172,9 +192,17 @@ def _build_blocks(
     guest_quote = guest_message.strip() or "_(no message body)_"
     guest_block_text = _truncate(f"{guest_label}\n> {guest_quote}")
 
-    # ---- 4. Draft response ----
-    draft = (draft_response or "").strip()
+    # ---- 4. Draft response (strip [HOST:...] notes so they can't leak) ----
+    cleaned_draft, host_notes = _split_host_notes(draft_response or "")
+    draft = cleaned_draft.strip()
     draft_block_text = _truncate(f"*Draft reply:*\n> {draft}") if draft else "*Draft reply:*\n> _(no draft)_"
+    if host_notes:
+        notes_bullets = "\n".join(f"• {n}" for n in host_notes)
+        host_notes_block_text = _truncate(
+            f"*Host notes (not sent to guest):*\n{notes_bullets}"
+        )
+    else:
+        host_notes_block_text = ""
 
     # ---- 5. Footer: reservation id + action text ----
     response_needed = classification.get("response_needed", True)
@@ -184,7 +212,7 @@ def _build_blocks(
         action_text = "No response needed unless you'd like to reply."
     footer_text = f"`{reservation_uuid}` · {action_text}"
 
-    return [
+    blocks = [
         {
             "type": "context",
             "elements": [{"type": "mrkdwn", "text": _truncate(prefix_text)}],
@@ -201,11 +229,21 @@ def _build_blocks(
             "type": "section",
             "text": {"type": "mrkdwn", "text": draft_block_text},
         },
+    ]
+    if host_notes_block_text:
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": host_notes_block_text},
+            }
+        )
+    blocks.append(
         {
             "type": "context",
             "elements": [{"type": "mrkdwn", "text": _truncate(footer_text)}],
-        },
-    ]
+        }
+    )
+    return blocks
 
 
 def post_guest_alert(

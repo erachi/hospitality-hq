@@ -124,6 +124,27 @@ static:
   pets:
     allowed: false
     policy: No pets allowed.
+  vendor_policies:
+    default_policy: Vendors are welcome as long as they are not a potential nuisance category (see
+      not_a_fit) and provide a valid Certificate of Insurance (COI) showing they are appropriately licensed
+      and insured.
+    examples_welcome:
+    - Private chefs
+    - Photographers
+    - Yoga instructors
+    - Massage therapists
+    - Hair/makeup artists
+    not_a_fit:
+    - DJs
+    - Entertainers
+    - Any vendor whose services typically generate noise or create a potential nuisance for neighbors
+    coi_requirement: Please share a Certificate of Insurance before the vendor arrives on-site. The host
+      will confirm receipt before the service date.
+    guidance: Please message the host ahead of time with the vendor's name and arrival window. Services
+      that wrap up by 9:30 PM for quiet hours would work best.
+    bachelorette_groups: Welcome, provided the house rules are followed.
+    early_arrival: Vendors arriving before check-in time can use the door code to let themselves in.
+    coi_company_name: TODO  # [HOST: fill in the property management / ownership entity name vendors should list on their COI]
   check_in: {}
   check_out: {}
   emergency_contacts: {}
@@ -221,6 +242,14 @@ dynamic:
     source_reservations:
     - 2c18536f-50f8-4578-a42f-f79ee9f705f9
     last_seen: '2026-04-18'
+  - topic: external_vendors
+    question: Can we bring in external vendors (chef, photographer, yoga instructor, massage, hair/makeup)?
+    answer: Yes — vendors are welcome as long as they're not a potential nuisance category (DJs, entertainers,
+      or similar aren't a fit for this home) and they share a Certificate of Insurance (COI) ahead of
+      time showing they're appropriately licensed and insured. Please message the host with the vendor's
+      name and arrival window; services that wrap up by 9:30 PM for quiet hours would work best.
+    source_reservations: []
+    last_seen: '2026-11-03'
   precedents:
   - situation: Lock code could not be set as originally configured
     what_we_did: Issued an alternate door code to the guest before arrival
