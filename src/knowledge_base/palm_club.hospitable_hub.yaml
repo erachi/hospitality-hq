@@ -2,7 +2,7 @@ property:
   id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570
   slug: palm_club
 hospitable_snapshot:
-  fetched_at: '2026-11-03T01:13:40Z'
+  fetched_at: '2026-11-05T01:20:38Z'
   source: hospitable_knowledge_hub
   api_endpoint: /properties/{uuid}/knowledge-hub
   topics:
@@ -231,6 +231,16 @@ hospitable_snapshot:
       last_updated_via: mcp
       sources: []
       updated_at: '2026-11-03T01:12:46.000000Z'
+    - id: 6684285
+      content: Outside vendors such as chefs and private yoga instructors are allowed at the property
+        if they provide proof of liability insurance in advance of the stay.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: null
+      sources:
+      - Inbox (auto-detected)
+      updated_at: '2026-11-03T16:59:24.000000Z'
   - name: Maintenance
     slug: maintenance
     items:
@@ -296,6 +306,39 @@ hospitable_snapshot:
       last_updated_via: mcp
       sources: []
       updated_at: '2026-11-02T23:32:33.000000Z'
+  - name: Vendor Policies
+    slug: vendor_policies
+    items:
+    - id: 6687117
+      content: Vendors — private chefs, photographers, yoga instructors, massage therapists, hair/makeup
+        artists, and similar — are welcome as long as they share a Certificate of Insurance (COI) ahead
+        of time showing they are appropriately licensed and insured. Please message the host with the
+        vendor's name and arrival window. Services that wrap up by 9:30 PM for quiet hours would work
+        best. The property accommodates up to 16 guests and welcomes bachelorette groups, provided house
+        rules are followed.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-03T18:36:05.000000Z'
+    - id: 6710919
+      content: DJs, entertainers, and any vendor whose services typically generate noise or create a potential
+        nuisance for neighbors are not a fit for this home.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-05T01:19:23.000000Z'
+    - id: 6710920
+      content: Vendors arriving before check-in time can use the door code to let themselves in.
+      original_content: null
+      is_edited: false
+      state: ready
+      last_updated_via: mcp
+      sources: []
+      updated_at: '2026-11-05T01:19:26.000000Z'
   - name: Wi-Fi
     slug: wi_fi
     items:

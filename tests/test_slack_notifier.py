@@ -413,3 +413,85 @@ def test_alert_still_posts_when_tz_database_missing(mock_token):
         result = _call(message_timestamp="2026-04-18T17:22:00Z")
     assert result["ok"] is True
     assert len(responses.calls) == 1
+
+
+# ─── Host-notes extraction: `[HOST: ...]` must never reach the guest ──────
+
+from slack_notifier import _split_host_notes  # noqa: E402
+
+
+def test_split_host_notes_single_bracket_removed_notes_captured():
+    draft = "Hi Jane! Checkout is at 11 AM. [HOST: confirm late checkout available] Let me know."
+    cleaned, notes = _split_host_notes(draft)
+    assert "[HOST:" not in cleaned
+    assert notes == ["confirm late checkout available"]
+    assert "Hi Jane!" in cleaned
+    assert "Let me know." in cleaned
+
+
+def test_split_host_notes_multiple_brackets():
+    draft = (
+        "Pool heating is $250. [HOST: verify date] "
+        "Pickleball court is yours. [HOST: confirm paddles are stocked]"
+    )
+    cleaned, notes = _split_host_notes(draft)
+    assert notes == ["verify date", "confirm paddles are stocked"]
+    assert "[HOST:" not in cleaned
+    assert "Pool heating is $250." in cleaned
+    assert "Pickleball court is yours." in cleaned
+
+
+def test_split_host_notes_no_brackets_returns_draft_unchanged():
+    draft = "Hi Jane! All good — see you Friday."
+    cleaned, notes = _split_host_notes(draft)
+    assert cleaned == draft
+    assert notes == []
+
+
+def test_split_host_notes_handles_empty_and_none():
+    assert _split_host_notes("") == ("", [])
+    assert _split_host_notes(None) == ("", [])
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_alert_adds_host_notes_block_when_draft_has_brackets(mock_token):
+    _stub_slack()
+    _call(
+        draft_response=(
+            "Hi Jane! Checkout is 11 AM. [HOST: confirm late checkout] "
+            "Pool heating is $250. [HOST: confirm date range]"
+        )
+    )
+    payload = _request_payload(responses.calls[0])
+    blocks = payload["blocks"]
+    # One extra section before the footer context block.
+    assert len(blocks) == 6
+    assert [b["type"] for b in blocks] == [
+        "context",
+        "section",
+        "section",
+        "section",
+        "section",
+        "context",
+    ]
+    all_text = _blocks_text(payload)
+    assert "Host notes (not sent to guest)" in all_text
+    assert "confirm late checkout" in all_text
+    assert "confirm date range" in all_text
+    # Guest-visible draft must NOT retain the bracket text.
+    draft_block = blocks[3]["text"]["text"]
+    assert "[HOST:" not in draft_block
+    assert "confirm late checkout" not in draft_block
+
+
+@responses.activate
+@patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
+def test_alert_omits_host_notes_block_when_draft_is_clean(mock_token):
+    _stub_slack()
+    _call(draft_response="Hi Jane! All good — see you Friday.")
+    payload = _request_payload(responses.calls[0])
+    blocks = payload["blocks"]
+    assert len(blocks) == 5
+    all_text = _blocks_text(payload)
+    assert "Host notes" not in all_text

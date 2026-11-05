@@ -239,3 +239,25 @@ def test_summarize_conversation_skips_thin_threads(mock_client):
 
     # No call was made.
     mock_client.return_value.messages.create.assert_not_called()
+
+
+def test_draft_prompt_includes_new_guidelines():
+    """The DRAFT_RESPONSE_PROMPT must carry the four quality guidelines so
+    the drafter avoids markdown, mirrors guest language, echoes named
+    entities, and keeps replies short. Guards against accidental prompt
+    drift."""
+    from classifier import DRAFT_RESPONSE_PROMPT
+
+    prompt = DRAFT_RESPONSE_PROMPT
+    # 1. Plain text / no markdown
+    assert "PLAIN TEXT" in prompt
+    assert "no **bold**" in prompt or "no markdown" in prompt.lower()
+    # 2. Mirror guest language
+    assert "Mirror the guest" in prompt
+    # 3. Echo named entities
+    assert "echo those EXACT names" in prompt or "echo those exact names" in prompt.lower()
+    # 4. Short wins
+    assert "Keep it short" in prompt
+    # 5. [HOST:...] note semantics match slack_notifier behavior
+    assert "stripped from the guest-visible draft" in prompt
+    assert "Host notes (not sent to guest)" in prompt
