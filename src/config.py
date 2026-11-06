@@ -94,6 +94,35 @@ TASKS_BUCKET = os.environ.get("TASKS_BUCKET", "hospitality-hq-tasks")
 # channel so the two workflows don't pollute each other.
 TASKS_CHANNEL_ID = os.environ.get("TASKS_CHANNEL_ID", "")
 
+# ─── Per-stay Slack channel workflow ──────────────────────────────────────
+# Feature flag — default off so the new paths ship dark and we flip it on
+# after a smoke test. Every stay-channel entry point guards on this.
+STAY_CHANNELS_ENABLED = os.environ.get("STAY_CHANNELS_ENABLED", "false").lower() == "true"
+
+# DynamoDB table mapping reservation_uuid ↔ Slack channel_id (plus a small
+# bag of operational attributes). Journal body itself lives in S3.
+STAY_CHANNELS_TABLE = os.environ.get("STAY_CHANNELS_TABLE", "hospitality-hq-stay-channels")
+
+# S3 bucket + prefix for the per-reservation stay journal JSON. We reuse
+# the tasks bucket by default so versioning and lifecycle rules apply
+# without new infra.
+STAY_JOURNAL_BUCKET = os.environ.get("STAY_JOURNAL_BUCKET", "hospitality-hq-tasks")
+STAY_JOURNAL_PREFIX = os.environ.get("STAY_JOURNAL_PREFIX", "stays/")
+
+# Channel name prefix + invite list. Slack user IDs are comma-separated.
+STAY_CHANNEL_NAME_PREFIX = os.environ.get("STAY_CHANNEL_NAME_PREFIX", "stay-")
+STAY_CHANNEL_INVITE_USER_IDS = [
+    uid.strip()
+    for uid in os.environ.get("STAY_CHANNEL_INVITE_USER_IDS", "").split(",")
+    if uid.strip()
+]
+
+# How much Hospitable transcript to replay into the Slack channel at
+# provision (and restore) time. The full transcript always goes to S3;
+# Slack only sees the recent slice because free workspaces hide messages
+# older than ~90 days.
+STAY_SLACK_BACKFILL_DAYS = int(os.environ.get("STAY_SLACK_BACKFILL_DAYS", "14"))
+
 # ─── Expense-capture workflow ─────────────────────────────────────────────
 # S3 bucket for expense JSON + receipt images + exports. Object Lock
 # enabled at bucket creation; receipts/ prefix gets per-object 7-year

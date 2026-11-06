@@ -40,6 +40,23 @@ Parameters:
     Type: String
     Default: ""
     Description: Slack channel ID for #expenses (where receipts are dropped)
+  StayChannelsEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Feature flag for per-stay Slack channels + ambient agent
+  StayChannelInviteUserIds:
+    Type: String
+    Default: ""
+    Description: Comma-separated Slack user IDs invited to every stay channel (VJ + Maggie)
+  StayChannelNamePrefix:
+    Type: String
+    Default: "stay-"
+    Description: Prefix for auto-provisioned per-stay Slack channel names
+  StaySlackBackfillDays:
+    Type: String
+    Default: "14"
+    Description: How many days of Hospitable transcript to replay into a new stay channel
 
 Globals:
   Function:
@@ -199,6 +216,32 @@ Resources:
           KeyType: HASH
         - AttributeName: log_id
           KeyType: RANGE
+
+  # Reservation ↔ per-stay Slack channel index. Journal body lives in S3
+  # (stays/<reservation_uuid>.json in the tasks bucket); this table is just
+  # the pointer plus a few hot operational attributes.
+  # GSI by_channel lets the Slack event router resolve an incoming
+  # channel event back to a reservation in one query.
+  StayChannelsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: hospitality-hq-stay-channels
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reservation_uuid
+          AttributeType: S
+        - AttributeName: channel_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reservation_uuid
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: by_channel
+          KeySchema:
+            - AttributeName: channel_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   # Receives Slack Events API callbacks for in-thread replies.
   ThreadEventHandler:

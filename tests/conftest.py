@@ -20,6 +20,12 @@ os.environ["TASKS_BUCKET"] = "hospitality-hq-tasks-test"
 os.environ["TASKS_CHANNEL_ID"] = "C_TEST_TASKS"
 os.environ["EXPENSES_BUCKET"] = "hospitality-hq-expenses-test"
 os.environ["EXPENSES_CHANNEL_ID"] = "C_TEST_EXPENSES"
+os.environ["STAY_CHANNELS_TABLE"] = "hospitality-hq-stay-channels-test"
+os.environ["STAY_JOURNAL_BUCKET"] = "hospitality-hq-tasks-test"
+os.environ["STAY_JOURNAL_PREFIX"] = "stays/"
+os.environ["STAY_CHANNEL_NAME_PREFIX"] = "stay-"
+os.environ["STAY_CHANNEL_INVITE_USER_IDS"] = "UVJ,UMAGGIE"
+os.environ["STAY_SLACK_BACKFILL_DAYS"] = "14"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
@@ -250,6 +256,43 @@ def tasks_bucket():
         except ImportError:
             pass
 
+        yield s3
+
+
+@pytest.fixture
+def stay_channels_table():
+    """Mock DynamoDB stay-channels table with the by_channel GSI."""
+    with mock_aws():
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        table = dynamodb.create_table(
+            TableName="hospitality-hq-stay-channels-test",
+            KeySchema=[{"AttributeName": "reservation_uuid", "KeyType": "HASH"}],
+            AttributeDefinitions=[
+                {"AttributeName": "reservation_uuid", "AttributeType": "S"},
+                {"AttributeName": "channel_id", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "by_channel",
+                    "KeySchema": [
+                        {"AttributeName": "channel_id", "KeyType": "HASH"}
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                }
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        table.wait_until_exists()
+        yield table
+
+
+@pytest.fixture
+def stay_journal_bucket():
+    """Mock S3 bucket for stay journals. Reuses the tasks bucket layout
+    since STAY_JOURNAL_BUCKET defaults to the tasks bucket."""
+    with mock_aws():
+        s3 = boto3.client("s3", region_name="us-east-1")
+        s3.create_bucket(Bucket="hospitality-hq-tasks-test")
         yield s3
 
 
