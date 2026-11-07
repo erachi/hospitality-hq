@@ -90,6 +90,13 @@ Resources:
           DYNAMODB_TABLE: !Ref MessagesTable
           THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
           THREAD_LOGS_TABLE: !Ref ThreadLogsTable
+          STAY_CHANNELS_ENABLED: !Ref StayChannelsEnabled
+          STAY_CHANNELS_TABLE: !Ref StayChannelsTable
+          STAY_JOURNAL_BUCKET: !Ref TasksBucketName
+          STAY_JOURNAL_PREFIX: "stays/"
+          STAY_CHANNEL_NAME_PREFIX: !Ref StayChannelNamePrefix
+          STAY_CHANNEL_INVITE_USER_IDS: !Ref StayChannelInviteUserIds
+          STAY_SLACK_BACKFILL_DAYS: !Ref StaySlackBackfillDays
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
@@ -97,6 +104,25 @@ Resources:
             TableName: !Ref ThreadMappingTable
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadLogsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StayChannelsTable
+        # Stay journals live at s3://<tasks-bucket>/stays/<uuid>.json.
+        # Scope writes to the stays/ prefix only — tasks and other
+        # artifacts in the same bucket must stay unreachable from here.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}/stays/*"
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}"
+              Condition:
+                StringLike:
+                  s3:prefix: ["stays/*"]
         # NOTE: We build the SSM ARN explicitly instead of using SAM's
         # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
         # ParameterName, so a ParameterName that starts with "/" (like
@@ -132,6 +158,13 @@ Resources:
           DYNAMODB_TABLE: !Ref MessagesTable
           THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
           THREAD_LOGS_TABLE: !Ref ThreadLogsTable
+          STAY_CHANNELS_ENABLED: !Ref StayChannelsEnabled
+          STAY_CHANNELS_TABLE: !Ref StayChannelsTable
+          STAY_JOURNAL_BUCKET: !Ref TasksBucketName
+          STAY_JOURNAL_PREFIX: "stays/"
+          STAY_CHANNEL_NAME_PREFIX: !Ref StayChannelNamePrefix
+          STAY_CHANNEL_INVITE_USER_IDS: !Ref StayChannelInviteUserIds
+          STAY_SLACK_BACKFILL_DAYS: !Ref StaySlackBackfillDays
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
@@ -139,6 +172,22 @@ Resources:
             TableName: !Ref ThreadMappingTable
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadLogsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StayChannelsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}/stays/*"
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}"
+              Condition:
+                StringLike:
+                  s3:prefix: ["stays/*"]
         # NOTE: We build the SSM ARN explicitly instead of using SAM's
         # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
         # ParameterName, so a ParameterName that starts with "/" (like

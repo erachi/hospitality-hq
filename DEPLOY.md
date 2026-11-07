@@ -19,7 +19,16 @@ You need a Slack bot token to post messages programmatically (separate from the 
 3. Go to **OAuth & Permissions** and add these Bot Token Scopes:
    - `chat:write` — post messages
    - `channels:read` — find channel IDs
-4. Click **Install to Workspace** and authorize
+   - `groups:write` — create per-stay private channels + invite users *(stay channels)*
+   - `groups:read` — list private channels *(stay channels)*
+   - `groups:history` — read channel history for the ambient agent *(stay channels)*
+   - `pins:write` — pin the stay-channel intro message *(stay channels)*
+
+   The four `groups:*` / `pins:write` scopes are needed only once the
+   per-stay channel feature flag flips on (`StayChannelsEnabled=true`).
+   Adding them up front is safe and avoids a second workspace re-install.
+4. Click **Install to Workspace** and authorize (re-authorize if you
+   just added scopes — Slack forces this)
 5. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
 6. In Slack, create a channel called `#guest-alerts`
 7. Invite the bot to the channel: `/invite @Hospitality HQ Bot`

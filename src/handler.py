@@ -15,12 +15,19 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from config import PROPERTY_UUIDS
+from config import PROPERTY_UUIDS, STAY_CHANNELS_ENABLED
 from hospitable_client import HospitableClient
 from state_tracker import StateTracker, message_dedup_key
 from classifier import classify_message, draft_response, summarize_conversation
-from slack_notifier import post_guest_alert
-from knowledge_base_loader import load_kb, format_for_claude, get_property_name
+from slack_notifier import post_guest_alert, StayChannelSlackClient
+from knowledge_base_loader import (
+    load_kb,
+    format_for_claude,
+    get_property_name,
+    get_property_slug,
+)
+from stay_channels import StayChannels
+from stay_provisioner import provision_if_missing, mirror_message
 from thread_mapping import ThreadMapping
 from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
 
@@ -185,6 +192,29 @@ def process_reservation(
 
     # Fetch messages for this reservation
     messages = hospitable.get_reservation_messages(res_uuid)
+
+    # Provision the per-stay Slack channel if the feature is on and no
+    # channel exists yet. Idempotent: the provisioner short-circuits on
+    # STAY_CHANNELS_ENABLED=False and on an existing row. Failures here
+    # log loudly and never block the #guest-alerts path below.
+    if STAY_CHANNELS_ENABLED:
+        try:
+            provision_if_missing(
+                reservation_uuid=res_uuid,
+                property_id=property_id,
+                property_slug=get_property_slug(property_id) or "",
+                property_name=property_name,
+                guest_name=guest_name,
+                check_in=checkin,
+                check_out=checkout,
+                reservation_snapshot=reservation,
+                hospitable_client=hospitable,
+                slack_client=StayChannelSlackClient(),
+            )
+        except Exception as e:
+            logger.warning(
+                f"Stay-channel provisioning failed for {res_uuid}: {e}"
+            )
 
     process_conversation(
         conversation_id=res_uuid,
@@ -411,6 +441,18 @@ def process_conversation(
             logger.warning(f"Conversation summary failed for {res_uuid}: {e}")
             thread_summary = ""
 
+        # If a per-stay channel exists for this reservation, link to it
+        # from the #guest-alerts card so the operator can drop into the
+        # richer channel. Lookup is cheap (DynamoDB point read); skip
+        # silently on error so this never breaks alerting.
+        stay_channel_id = ""
+        if STAY_CHANNELS_ENABLED and not is_inquiry:
+            try:
+                stay_row = StayChannels().get_by_reservation(res_uuid)
+                stay_channel_id = (stay_row or {}).get("channel_id", "") or ""
+            except Exception as e:
+                logger.warning(f"Stay channel lookup failed for {res_uuid}: {e}")
+
         # Post to Slack
         slack_result = post_guest_alert(
             guest_name=guest_name,
@@ -428,7 +470,24 @@ def process_conversation(
             conversation_summary=thread_summary,
             message_timestamp=msg_time,
             is_inquiry=is_inquiry,
+            stay_channel_id=stay_channel_id,
         )
+
+        # Mirror the Hospitable message into the stay channel (if any).
+        # Called AFTER the #guest-alerts post so a mirror failure never
+        # loses the primary alert. The provisioner was invoked earlier
+        # in process_reservation; this call is a safety net for the
+        # messages the webhook didn't deliver.
+        if STAY_CHANNELS_ENABLED and not is_inquiry:
+            try:
+                mirror_message(
+                    reservation_uuid=res_uuid,
+                    message=msg,
+                    slack_client=StayChannelSlackClient(),
+                    guest_name=guest_name,
+                )
+            except Exception as e:
+                logger.warning(f"Mirror failed for {res_uuid}/{msg_id}: {e}")
 
         if slack_result.get("ok"):
             stats["alerts_posted"] += 1
