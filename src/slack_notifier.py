@@ -162,6 +162,7 @@ def _build_blocks(
     conversation_summary: str,
     message_timestamp: str,
     is_inquiry: bool = False,
+    stay_channel_id: str = "",
 ) -> list[dict]:
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
@@ -243,6 +244,18 @@ def _build_blocks(
             "elements": [{"type": "mrkdwn", "text": _truncate(footer_text)}],
         }
     )
+    if stay_channel_id:
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"🧵 Open stay channel → <#{stay_channel_id}>",
+                    }
+                ],
+            }
+        )
     return blocks
 
 
@@ -262,6 +275,7 @@ def post_guest_alert(
     conversation_summary: str = "",
     message_timestamp: str = "",
     is_inquiry: bool = False,
+    stay_channel_id: str = "",
 ) -> dict:
     """Post a Block Kit guest alert to the Slack channel.
 
@@ -301,6 +315,7 @@ def post_guest_alert(
         conversation_summary=conversation_summary,
         message_timestamp=message_timestamp,
         is_inquiry=is_inquiry,
+        stay_channel_id=stay_channel_id,
     )
 
     response = requests.post(
@@ -319,6 +334,80 @@ def post_guest_alert(
     )
 
     return response.json()
+
+
+class StayChannelSlackClient:
+    """Thin Slack Web API wrapper for the stay-channel provisioner.
+
+    Methods return the parsed Slack response dict so the provisioner can
+    branch on `ok` / `error`. All calls include the bot token and use
+    the same `requests.post` style as `post_guest_alert`.
+    """
+
+    _SLACK_BASE = "https://slack.com/api"
+
+    def _headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {get_slack_bot_token()}",
+            "Content-Type": "application/json; charset=utf-8",
+        }
+
+    def create_private_channel(self, name: str) -> dict:
+        """`conversations.create` with is_private=True."""
+        r = requests.post(
+            f"{self._SLACK_BASE}/conversations.create",
+            headers=self._headers(),
+            json={"name": name, "is_private": True},
+        )
+        return r.json()
+
+    def invite_users(self, channel_id: str, user_ids: list[str]) -> dict:
+        """`conversations.invite`. Returns the raw response.
+
+        Slack accepts up to 1000 users per call; our invite list is ≤ 5
+        so no batching needed. `already_in_channel` errors are logged
+        by the caller but not retried.
+        """
+        if not channel_id or not user_ids:
+            return {"ok": True, "noop": True}
+        r = requests.post(
+            f"{self._SLACK_BASE}/conversations.invite",
+            headers=self._headers(),
+            json={"channel": channel_id, "users": ",".join(user_ids)},
+        )
+        return r.json()
+
+    def post_message(
+        self,
+        channel_id: str,
+        *,
+        text: str,
+        blocks: list[dict] | None = None,
+    ) -> dict:
+        """`chat.postMessage`. Returns the raw response (incl. `ts`)."""
+        payload: dict = {
+            "channel": channel_id,
+            "text": text,
+            "unfurl_links": False,
+            "unfurl_media": False,
+        }
+        if blocks:
+            payload["blocks"] = blocks
+        r = requests.post(
+            f"{self._SLACK_BASE}/chat.postMessage",
+            headers=self._headers(),
+            json=payload,
+        )
+        return r.json()
+
+    def pin_message(self, channel_id: str, ts: str) -> dict:
+        """`pins.add`. Non-fatal — caller shrugs on failure."""
+        r = requests.post(
+            f"{self._SLACK_BASE}/pins.add",
+            headers=self._headers(),
+            json={"channel": channel_id, "timestamp": ts},
+        )
+        return r.json()
 
 
 def post_thread_reply(thread_ts: str, text: str, channel: str | None = None) -> dict:

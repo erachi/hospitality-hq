@@ -17,11 +17,11 @@ import json
 import logging
 import base64
 
-from config import get_webhook_secret
+from config import get_webhook_secret, STAY_CHANNELS_ENABLED
 from hospitable_client import HospitableClient
 from state_tracker import StateTracker, message_dedup_key
 from classifier import classify_message, draft_response, summarize_conversation
-from slack_notifier import post_guest_alert
+from slack_notifier import post_guest_alert, StayChannelSlackClient
 from handler import (
     load_property_context,
     build_conversation_summary,
@@ -30,6 +30,8 @@ from handler import (
     _date_only,
 )
 from knowledge_base_loader import get_property_name
+from stay_channels import StayChannels
+from stay_provisioner import mirror_message
 from thread_mapping import ThreadMapping
 from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
 
@@ -239,6 +241,16 @@ def process_webhook_message(
         logger.warning(f"Conversation summary failed for {reservation_id}: {e}")
         thread_summary = ""
 
+    # Look up the stay channel to add a footer linking there. Inquiries
+    # stay on the firehose only (no stay channel exists for pre-booking).
+    stay_channel_id = ""
+    if STAY_CHANNELS_ENABLED and not is_inquiry:
+        try:
+            stay_row = StayChannels().get_by_reservation(reservation_id)
+            stay_channel_id = (stay_row or {}).get("channel_id", "") or ""
+        except Exception as e:
+            logger.warning(f"Stay channel lookup failed for {reservation_id}: {e}")
+
     # Post to Slack
     slack_result = post_guest_alert(
         guest_name=guest_name,
@@ -256,7 +268,24 @@ def process_webhook_message(
         conversation_summary=thread_summary,
         message_timestamp=data.get("created_at", ""),
         is_inquiry=is_inquiry,
+        stay_channel_id=stay_channel_id,
     )
+
+    # Mirror the guest message into the stay channel if one exists.
+    # Wrapped so a mirror failure never fails the webhook — Hospitable
+    # retries on 5xx and the hourly safety-net will re-post if needed.
+    if STAY_CHANNELS_ENABLED and not is_inquiry:
+        try:
+            mirror_message(
+                reservation_uuid=reservation_id,
+                message=data,
+                slack_client=StayChannelSlackClient(),
+                guest_name=guest_name,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Mirror failed for webhook event {webhook_id}: {e}"
+            )
 
     if slack_result.get("ok"):
         logger.info(f"Posted Slack alert for webhook event {webhook_id}")

@@ -20,9 +20,12 @@ import hmac
 import json
 import logging
 import time
+from urllib.parse import parse_qs
 
-from config import get_slack_signing_secret, SLACK_CHANNEL_ID
+from config import get_slack_signing_secret, SLACK_CHANNEL_ID, STAY_CHANNELS_ENABLED
 from slack_notifier import post_thread_reply
+from stay_channels import StayChannels
+from stay_models import STATUS_ACTIVE
 from thread_mapping import ThreadMapping
 from thread_logs import (
     ThreadLogs,
@@ -79,6 +82,17 @@ def slack_events_handler(event, context):
         logger.warning("Invalid Slack signature")
         return {"statusCode": 401, "body": "Invalid signature"}
 
+    # Interactivity endpoint: Slack sends block_actions and view_submission
+    # as application/x-www-form-urlencoded with a `payload=` JSON string.
+    # Everything else (Events API) is application/json.
+    ctype = headers.get("content-type", "")
+    if "application/x-www-form-urlencoded" in ctype:
+        try:
+            _process_interaction(raw_body)
+        except Exception as e:
+            logger.exception(f"Error processing Slack interaction: {e}")
+        return _ok()
+
     # Parse payload
     try:
         payload = json.loads(raw_body)
@@ -124,8 +138,26 @@ def _process_event(payload: dict) -> None:
         logger.info(f"Ignoring message subtype: {subtype}")
         return
 
-    # Must be a thread reply (thread_ts present AND != ts — a new top-level
-    # message in a channel has no thread_ts yet)
+    channel = inner.get("channel", "")
+
+    # Don't react to our own bot (would cause loops — the mirror and
+    # the agent both post via this bot; those posts come back as
+    # events). Filter regardless of channel so we can't ever self-chat.
+    if inner.get("bot_id") or inner.get("app_id"):
+        logger.info("Ignoring bot message")
+        return
+
+    # Route 1: stay-channel ambient agent.
+    # A top-level message in a provisioned stay channel triggers the
+    # agent. Thread replies inside a stay channel are human side-chat
+    # and silent (that's where VJ and Maggie talk to each other).
+    if STAY_CHANNELS_ENABLED and channel:
+        stay_row = StayChannels().get_by_channel(channel)
+        if stay_row and stay_row.get("status") == STATUS_ACTIVE:
+            _process_stay_channel_event(inner, stay_row)
+            return
+
+    # Route 2: #guest-alerts thread replies (the original flow).
     thread_ts = inner.get("thread_ts")
     ts = inner.get("ts")
     if not thread_ts or thread_ts == ts:
@@ -133,14 +165,8 @@ def _process_event(payload: dict) -> None:
         return
 
     # Right channel only
-    channel = inner.get("channel", "")
     if SLACK_CHANNEL_ID and channel != SLACK_CHANNEL_ID:
         logger.info(f"Ignoring message in other channel: {channel}")
-        return
-
-    # Don't react to our own bot (would cause loops)
-    if inner.get("bot_id") or inner.get("app_id"):
-        logger.info("Ignoring bot message")
         return
 
     # Find the reservation context for this thread
@@ -178,6 +204,72 @@ def _process_event(payload: dict) -> None:
         )
     else:
         post_thread_reply(thread_ts, _HELP_NUDGE, channel=channel)
+
+
+def _process_stay_channel_event(inner: dict, stay_row: dict) -> None:
+    """Dispatch a message in a provisioned stay channel to the agent.
+
+    Only TOP-LEVEL messages trigger the agent — thread replies on a
+    mirrored message are considered human side-chat and ignored. The
+    future @mention escape hatch can land later.
+    """
+    thread_ts = inner.get("thread_ts")
+    ts = inner.get("ts")
+    if thread_ts and thread_ts != ts:
+        logger.info(
+            f"Ignoring thread reply in stay channel {inner.get('channel')}"
+        )
+        return
+    text = (inner.get("text") or "").strip()
+    if not text:
+        return
+    # Lazy import — stay_agent brings in the Anthropic SDK and we
+    # don't want to pay that cost on an Events request that turns out
+    # to be a #guest-alerts thread reply.
+    from stay_agent import handle_channel_message
+
+    handle_channel_message(inner, stay_row)
+
+
+def _process_interaction(raw_body: str) -> None:
+    """Dispatch a Slack interactivity POST.
+
+    Slack posts block_actions / view_submission as
+    `application/x-www-form-urlencoded` with the payload JSON under a
+    single `payload=` key.
+    """
+    parsed = parse_qs(raw_body or "")
+    raw_payload = (parsed.get("payload") or [""])[0]
+    if not raw_payload:
+        logger.warning("Interaction POST missing payload field")
+        return
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError:
+        logger.warning("Interaction payload is not JSON")
+        return
+
+    kind = payload.get("type")
+    if kind != "block_actions":
+        logger.info(f"Ignoring interaction type: {kind}")
+        return
+
+    actions = payload.get("actions") or []
+    if not actions:
+        return
+    action_id = (actions[0] or {}).get("action_id", "")
+
+    # Stay-channel draft buttons.
+    if action_id == "stay_send_draft":
+        from stay_agent import handle_send_draft
+        handle_send_draft(payload)
+        return
+    if action_id == "stay_discard_draft":
+        from stay_agent import handle_discard_draft
+        handle_discard_draft(payload)
+        return
+
+    logger.info(f"Ignoring unknown interaction action: {action_id}")
 
 
 def _classify_intent(text: str) -> tuple[str, str]:

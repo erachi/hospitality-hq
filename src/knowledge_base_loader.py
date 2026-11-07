@@ -82,6 +82,26 @@ def get_property_name(property_id: str) -> Optional[str]:
     return kb.get("property", {}).get("name")
 
 
+# Short per-property slugs used in Slack channel names and S3 paths. Keep in
+# sync with seed/properties.json. The YAML filename is a good source of
+# truth only accidentally — split this out so a rename never breaks channel
+# names mid-flight.
+_UUID_TO_SLUG = {
+    "f8236d9d-988a-4192-9d16-2927b0b9ad8e": "villa",
+    "3278e9cb-9239-487f-aa51-cbfbaf4b7570": "palm",
+}
+
+
+def get_property_slug(property_id: str) -> Optional[str]:
+    """Return the short slug (e.g. "palm") for a Hospitable property UUID.
+
+    None when unmapped — the caller decides the fallback.
+    """
+    if not property_id:
+        return None
+    return _UUID_TO_SLUG.get(property_id)
+
+
 def format_for_claude(kb: dict) -> str:
     """Render the KB as a structured plain-text block to include in a Claude prompt.
 
