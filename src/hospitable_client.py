@@ -26,6 +26,26 @@ class HospitableClient:
         resp.raise_for_status()
         return resp.json()
 
+    def _post(self, path: str, json_body: dict) -> dict:
+        """Make a POST request to the Hospitable API."""
+        url = f"{self.base_url}{path}"
+        resp = self.session.post(url, json=json_body)
+        resp.raise_for_status()
+        return resp.json()
+
+    def send_reservation_message(self, reservation_uuid: str, body: str) -> dict:
+        """Send a host message to a reservation thread.
+
+        Posts to `POST /reservations/{uuid}/messages` with a plain-text
+        body. The caller (the stay-channel "Send to guest" button) is
+        responsible for ensuring a human approved this. Returns the
+        raw Hospitable response.
+        """
+        return self._post(
+            f"/reservations/{reservation_uuid}/messages",
+            {"body": body},
+        )
+
     def get_properties(self) -> list[dict]:
         """Fetch all properties for the authenticated user."""
         data = self._get("/properties")

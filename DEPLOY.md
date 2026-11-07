@@ -29,6 +29,16 @@ You need a Slack bot token to post messages programmatically (separate from the 
    Adding them up front is safe and avoids a second workspace re-install.
 4. Click **Install to Workspace** and authorize (re-authorize if you
    just added scopes — Slack forces this)
+5. **Event subscriptions (stay channels only):** In the Slack app admin,
+   open **Event Subscriptions**, make sure the Request URL points at
+   `https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/events`,
+   and under **Subscribe to bot events** add:
+   - `message.channels` (already in use for `#guest-alerts` thread replies)
+   - `message.groups` *(stay channels — private channels)*
+6. **Interactivity & Shortcuts (stay channels only):** Also in the Slack
+   app admin, turn on **Interactivity** and set the Request URL to
+   `https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/interactions`.
+   Needed for the Send-to-guest / Discard buttons on stay-channel draft cards.
 5. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
 6. In Slack, create a channel called `#guest-alerts`
 7. Invite the bot to the channel: `/invite @Hospitality HQ Bot`

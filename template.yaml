@@ -292,7 +292,10 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # Receives Slack Events API callbacks for in-thread replies.
+  # Receives Slack Events API callbacks for in-thread replies, stay-channel
+  # ambient-agent messages, and stay-channel draft-button clicks. One Lambda
+  # handles both /slack/events (JSON, Events API) and /slack/interactions
+  # (form-encoded, Interactivity) — the handler branches on Content-Type.
   ThreadEventHandler:
     Type: AWS::Serverless::Function
     Properties:
@@ -300,7 +303,7 @@ Resources:
       Handler: thread_handler.slack_events_handler
       CodeUri: src/
       Timeout: 15  # Slack retries after 3s; keep handler tight
-      Description: Processes Slack thread replies (Q&A, notes, issues, resolutions)
+      Description: Slack Events + Interactivity (stay channels, thread replies)
       Environment:
         Variables:
           SSM_PREFIX: !Ref SSMPrefix
@@ -309,11 +312,31 @@ Resources:
           THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
           THREAD_LOGS_TABLE: !Ref ThreadLogsTable
           DYNAMODB_TABLE: !Ref MessagesTable
+          STAY_CHANNELS_ENABLED: !Ref StayChannelsEnabled
+          STAY_CHANNELS_TABLE: !Ref StayChannelsTable
+          STAY_JOURNAL_BUCKET: !Ref TasksBucketName
+          STAY_JOURNAL_PREFIX: "stays/"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadMappingTable
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadLogsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StayChannelsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}/stays/*"
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}"
+              Condition:
+                StringLike:
+                  s3:prefix: ["stays/*"]
         - Statement:
             - Effect: Allow
               Action:
@@ -328,6 +351,55 @@ Resources:
             ApiId: !Ref WebhookApi
             Path: /slack/events
             Method: POST
+        SlackInteractions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /slack/interactions
+            Method: POST
+
+  # Daily archival: close stay channels whose check-out + 7 days has passed.
+  # S3 journal is finalized with a system entry before the channel closes.
+  StayArchiverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hospitality-hq-stay-archiver
+      Handler: stay_archiver.lambda_handler
+      CodeUri: src/
+      Description: Daily archival of stay channels past the grace window
+      Environment:
+        Variables:
+          SSM_PREFIX: !Ref SSMPrefix
+          STAY_CHANNELS_ENABLED: !Ref StayChannelsEnabled
+          STAY_CHANNELS_TABLE: !Ref StayChannelsTable
+          STAY_JOURNAL_BUCKET: !Ref TasksBucketName
+          STAY_JOURNAL_PREFIX: "stays/"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StayChannelsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}/stays/*"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMPrefix}/*"
+      Events:
+        DailyArchive:
+          Type: Schedule
+          Properties:
+            # 10:15 UTC = 03:15 Phoenix (America/Phoenix, UTC-7 no DST).
+            # Off-peak so a slow archival doesn't contend with the morning
+            # message burst that the webhook handles.
+            Schedule: cron(15 10 * * ? *)
+            Description: Daily archival of stay channels past check-out + 7 days
+            Enabled: true
 
   # ═══════════════════════════════════════════════════════════════
   # Task-management workflow: /task slash command, interactive buttons,
