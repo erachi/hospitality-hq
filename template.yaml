@@ -293,17 +293,23 @@ Resources:
             ProjectionType: ALL
 
   # Receives Slack Events API callbacks for in-thread replies, stay-channel
-  # ambient-agent messages, and stay-channel draft-button clicks. One Lambda
-  # handles both /slack/events (JSON, Events API) and /slack/interactions
-  # (form-encoded, Interactivity) — the handler branches on Content-Type.
+  # ambient-agent messages, stay-channel draft-button clicks, AND (because
+  # the workspace runs a single Slack app) #receipts file_share events +
+  # expense-card button clicks. One Lambda handles both /slack/events
+  # (JSON, Events API) and /slack/interactions (form-encoded, Interactivity)
+  # — the handler branches on Content-Type, then on channel + action_id.
   ThreadEventHandler:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: hospitality-hq-slack-events
       Handler: thread_handler.slack_events_handler
       CodeUri: src/
-      Timeout: 15  # Slack retries after 3s; keep handler tight
-      Description: Slack Events + Interactivity (stay channels, thread replies)
+      # OCR of a receipt image costs ~3-6s on top of download + S3 writes.
+      # 30s leaves room without hitting cold-start cliffs. Slack still
+      # retries after 3s, but we already fast-ack retries (see _RETRY_HEADER).
+      Timeout: 30
+      MemorySize: 512
+      Description: Slack Events + Interactivity (stay channels, thread replies, receipts)
       Environment:
         Variables:
           SSM_PREFIX: !Ref SSMPrefix
@@ -316,6 +322,9 @@ Resources:
           STAY_CHANNELS_TABLE: !Ref StayChannelsTable
           STAY_JOURNAL_BUCKET: !Ref TasksBucketName
           STAY_JOURNAL_PREFIX: "stays/"
+          EXPENSES_CHANNEL_ID: !Ref ExpensesChannelId
+          EXPENSES_BUCKET: !Ref ExpensesBucketName
+          TASKS_BUCKET: !Ref TasksBucketName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadMappingTable
@@ -337,6 +346,34 @@ Resources:
               Condition:
                 StringLike:
                   s3:prefix: ["stays/*"]
+        # Expense pipeline also reads properties.json from the tasks bucket
+        # (post_confirmation_card → TaskStore().load_properties()).
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "arn:aws:s3:::${TasksBucketName}/config/*"
+        # Expense pipeline: full access to the expenses bucket for ingest.
+        # Scoped to the three prefixes the pipeline actually writes, plus
+        # ListBucket on those prefixes for idempotency lookups.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:PutObjectRetention
+                - s3:DeleteObject
+              Resource:
+                - !Sub "arn:aws:s3:::${ExpensesBucketName}/expenses/*"
+                - !Sub "arn:aws:s3:::${ExpensesBucketName}/receipts/*"
+                - !Sub "arn:aws:s3:::${ExpensesBucketName}/indexes/*"
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::${ExpensesBucketName}"
+              Condition:
+                StringLike:
+                  s3:prefix: ["expenses/*", "receipts/*", "indexes/*"]
         - Statement:
             - Effect: Allow
               Action:

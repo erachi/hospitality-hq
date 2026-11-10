@@ -159,8 +159,28 @@ def slack_expenses_handler(event, context):
 # ─── Event routing ───────────────────────────────────────────────────────
 
 
+def process_file_share(inner_event: dict) -> None:
+    """Public entry point: process a Slack message.file_share event.
+
+    The Hospitality HQ workspace runs a SINGLE Slack app, so all Events
+    API deliveries flow through `thread_handler`'s `/slack/events`
+    endpoint. `thread_handler` delegates here when it sees a file_share
+    in `EXPENSES_CHANNEL_ID`. This function also tolerates being
+    called from the legacy `slack_expenses_handler` entry point so the
+    orphaned `/slack/expenses/events` route still works if anyone ever
+    wires it back up.
+
+    Does its own channel + subtype guards; callers don't need to pre-filter.
+    """
+    _route_inner_event(inner_event)
+
+
 def _route_event(envelope: dict) -> None:
-    inner = envelope.get("event", {}) or {}
+    """Internal: unwrap Events API envelope, then delegate to shared code."""
+    _route_inner_event(envelope.get("event", {}) or {})
+
+
+def _route_inner_event(inner: dict) -> None:
     if inner.get("type") != "message":
         return
     if inner.get("subtype") != "file_share":
@@ -466,6 +486,34 @@ def _retention_until_iso() -> str:
 
 
 # ─── Interactions (block_actions from the confirmation card) ────────────
+
+
+EXPENSE_ACTION_IDS = {
+    ACTION_FILE_IT,
+    ACTION_SKIP,
+    ACTION_SPLIT,
+    ACTION_PROPERTY_SELECT,
+    ACTION_CATEGORY_SELECT,
+}
+
+
+def is_expense_action(action_id: str) -> bool:
+    """Public: true if this action_id belongs to an expense card.
+
+    Used by `thread_handler`'s unified interaction dispatch to decide
+    whether to hand the payload to `process_interaction`.
+    """
+    return action_id in EXPENSE_ACTION_IDS
+
+
+def process_interaction(payload: dict) -> None:
+    """Public entry point: handle an expense-card block_actions payload.
+
+    Called from the unified `thread_handler._process_interaction` when
+    the clicked `action_id` is one of EXPENSE_ACTION_IDS. Return value
+    is discarded — Slack's HTTP response is already in flight by now.
+    """
+    _route_interaction(payload)
 
 
 def _route_interaction(payload: dict) -> dict:

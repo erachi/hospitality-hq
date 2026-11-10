@@ -22,7 +22,12 @@ import logging
 import time
 from urllib.parse import parse_qs
 
-from config import get_slack_signing_secret, SLACK_CHANNEL_ID, STAY_CHANNELS_ENABLED
+from config import (
+    get_slack_signing_secret,
+    EXPENSES_CHANNEL_ID,
+    SLACK_CHANNEL_ID,
+    STAY_CHANNELS_ENABLED,
+)
 from slack_notifier import post_thread_reply
 from stay_channels import StayChannels
 from stay_models import STATUS_ACTIVE
@@ -157,7 +162,20 @@ def _process_event(payload: dict) -> None:
             _process_stay_channel_event(inner, stay_row)
             return
 
-    # Route 2: #guest-alerts thread replies (the original flow).
+    # Route 2: receipt uploads in the expenses channel.
+    # Single-Slack-app workspace: all Events deliveries land here, so
+    # #receipts file_share events are dispatched to the expense pipeline.
+    if (
+        EXPENSES_CHANNEL_ID
+        and channel == EXPENSES_CHANNEL_ID
+        and inner.get("subtype") == "file_share"
+    ):
+        from expense_handler import process_file_share
+
+        process_file_share(inner)
+        return
+
+    # Route 3: #guest-alerts thread replies (the original flow).
     thread_ts = inner.get("thread_ts")
     ts = inner.get("ts")
     if not thread_ts or thread_ts == ts:
@@ -267,6 +285,14 @@ def _process_interaction(raw_body: str) -> None:
     if action_id == "stay_discard_draft":
         from stay_agent import handle_discard_draft
         handle_discard_draft(payload)
+        return
+
+    # Expense-card buttons (File it / Skip / Split / property+category selects).
+    # Same single-app rationale as the file_share route in _process_event.
+    from expense_handler import is_expense_action, process_interaction
+
+    if is_expense_action(action_id):
+        process_interaction(payload)
         return
 
     logger.info(f"Ignoring unknown interaction action: {action_id}")
