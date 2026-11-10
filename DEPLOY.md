@@ -12,37 +12,67 @@
 
 ## Step 1: Slack Setup
 
-You need a Slack bot token to post messages programmatically (separate from the MCP connector you use in Claude).
+### Architecture note: one Slack app serves every workflow
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app
-2. Choose "From scratch", name it "Hospitality HQ Bot", select your Hospitality HQ workspace
-3. Go to **OAuth & Permissions** and add these Bot Token Scopes:
-   - `chat:write` — post messages
-   - `channels:read` — find channel IDs
-   - `groups:write` — create per-stay private channels + invite users *(stay channels)*
-   - `groups:read` — list private channels *(stay channels)*
-   - `groups:history` — read channel history for the ambient agent *(stay channels)*
-   - `pins:write` — pin the stay-channel intro message *(stay channels)*
+The Hospitality HQ workspace runs a **single Slack app** — "Hospitality HQ Bot".
+Because a Slack app can only have **one Event Subscriptions URL** and **one
+Interactivity URL**, all Slack traffic across every workflow (guest alerts,
+stay channels, receipts, tasks) flows through two unified Lambda endpoints:
 
-   The four `groups:*` / `pins:write` scopes are needed only once the
-   per-stay channel feature flag flips on (`StayChannelsEnabled=true`).
-   Adding them up front is safe and avoids a second workspace re-install.
-4. Click **Install to Workspace** and authorize (re-authorize if you
-   just added scopes — Slack forces this)
-5. **Event subscriptions (stay channels only):** In the Slack app admin,
-   open **Event Subscriptions**, make sure the Request URL points at
-   `https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/events`,
-   and under **Subscribe to bot events** add:
-   - `message.channels` (already in use for `#guest-alerts` thread replies)
-   - `message.groups` *(stay channels — private channels)*
-6. **Interactivity & Shortcuts (stay channels only):** Also in the Slack
-   app admin, turn on **Interactivity** and set the Request URL to
-   `https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/interactions`.
-   Needed for the Send-to-guest / Discard buttons on stay-channel draft cards.
-5. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
-6. In Slack, create a channel called `#guest-alerts`
-7. Invite the bot to the channel: `/invite @Hospitality HQ Bot`
-8. Get the channel ID: right-click the channel name → "View channel details" → the ID is at the bottom
+| Workflow | Events (message.*) | Interactivity (buttons) | Slash commands |
+|---|---|---|---|
+| Guest alerts | `/slack/events` | — | — |
+| Stay channels | `/slack/events` | `/slack/interactions` | — |
+| Receipts | `/slack/events` | `/slack/interactions` | — |
+| Tasks | — (none today) | `/slack/interactions` ❓ | `/task` → own URL |
+
+`thread_handler.slack_events_handler` dispatches based on channel ID +
+subtype (for events) and `action_id` prefix (for interactions). The
+`/slack/expenses/events` and `/slack/tasks/events` routes in `template.yaml`
+are legacy from an earlier multi-app design and are unreachable from Slack
+with the current single-app setup — safe to leave in place as dead code,
+delete in a future cleanup PR.
+
+### Scopes
+
+Go to [api.slack.com/apps](https://api.slack.com/apps) → **Hospitality HQ Bot** → **OAuth & Permissions** and make sure these Bot Token Scopes are all present:
+
+- `chat:write` — post messages
+- `channels:read` — find channel IDs
+- `channels:history` — read `#guest-alerts` message events
+- `groups:write` — create per-stay private channels + invite users *(stay channels)*
+- `groups:read` — list private channels *(stay channels, receipts)*
+- `groups:history` — read private channel messages (stay-channel agent + `#receipts` file uploads)
+- `pins:write` — pin the stay-channel intro message
+- `files:read` — download uploaded receipt images
+
+Re-install to workspace whenever you add scopes.
+
+### Event Subscriptions
+
+In **Event Subscriptions**, set Request URL to:
+```
+https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/events
+```
+Subscribe to bot events:
+- `message.channels` — public channels (guest alerts)
+- `message.groups` — private channels (stay channels, receipts)
+
+### Interactivity & Shortcuts
+
+Turn on **Interactivity**, set Request URL to:
+```
+https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/interactions
+```
+This handles stay-channel draft buttons *and* expense-card buttons.
+
+### Channels
+
+1. `#guest-alerts` — public, bot invited. Set `SlackChannelId` parameter to this ID.
+2. `#receipts` — private, bot + VJ + Maggie. Set `ExpensesChannelId` parameter to this ID.
+3. Stay channels are auto-created by the monitor Lambda — no manual setup.
+
+Get channel IDs: right-click channel → *Copy* → *Copy link* → ID is the last URL segment, starts with `C...`.
 
 ## Step 2: Build & Deploy
 
