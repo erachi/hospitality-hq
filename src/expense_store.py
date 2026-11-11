@@ -15,7 +15,7 @@ Layout:
 
 Chosen to mirror task_store.py: flat JSON-per-object, LIST+parallel-GET
 for queries. S3 versioning is the free audit trail. Properties and
-merchant patterns are bundled with the Lambda as seed/, not stored here.
+merchant patterns are bundled with the Lambda as src/seed/, not stored here.
 """
 
 import json
