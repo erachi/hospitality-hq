@@ -44,7 +44,7 @@ _SYSTEM = (
 def _tool_schema() -> dict:
     """Build the tool schema with the live category enum.
 
-    The category list lives in seed/expense_categories.json so the
+    The category list lives in src/seed/expense_categories.json so the
     allowed values here are derived from that source of truth.
     """
     return {

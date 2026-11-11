@@ -1,8 +1,9 @@
 """Schedule E category taxonomy + merchant-name → category rules.
 
-Both tables ship as JSON files in seed/ and are bundled with the Lambda.
-Loaded once per cold start via lru_cache. Category IDs map 1:1 to
-Schedule E lines (see EXPENSES.md §6) — do not invent subcategories.
+Both tables ship as JSON files in src/seed/ and are bundled with the
+Lambda by virtue of being inside the CodeUri. Loaded once per cold
+start via lru_cache. Category IDs map 1:1 to Schedule E lines (see
+EXPENSES.md §6) — do not invent subcategories.
 """
 
 import json
@@ -16,15 +17,25 @@ logger = logging.getLogger(__name__)
 
 
 def _default_seed_dir() -> str:
-    """Locate the seed/ directory.
+    """Locate the directory holding expense_categories.json and
+    expense_merchant_patterns.json.
 
-    Lambda deploys put seed/ next to src/, so we walk up one level from
-    this file. A SEED_DIR env var overrides for tests / unusual layouts.
+    The files live at `src/seed/` so SAM's `CodeUri: src/` picks them
+    up automatically. For local dev we also fall back to the legacy
+    `../seed/` location (relative to this file) for any files that
+    haven't been migrated. A `SEED_DIR` env var overrides both for
+    tests / unusual layouts.
     """
-    return os.environ.get(
-        "SEED_DIR",
-        os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "seed")),
-    )
+    override = os.environ.get("SEED_DIR")
+    if override:
+        return override
+    here = os.path.dirname(__file__)
+    primary = os.path.normpath(os.path.join(here, "seed"))
+    if os.path.isdir(primary):
+        return primary
+    # Legacy location — kept for backwards compatibility with any
+    # checkout that still has seed/ at the repo root.
+    return os.path.normpath(os.path.join(here, "..", "seed"))
 
 
 @lru_cache(maxsize=1)

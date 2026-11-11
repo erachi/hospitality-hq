@@ -2,7 +2,8 @@
 
 The confirmation card is posted in-thread right after OCR finishes. Low-
 confidence fields get a red-dot prefix so the eye is drawn to them first.
-Property and category dropdowns are populated from seed/.
+Property and category dropdowns are populated from src/seed/ (categories)
+and S3 config/properties.json (properties).
 """
 
 from typing import Optional
