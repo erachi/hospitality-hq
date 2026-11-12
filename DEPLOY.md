@@ -19,19 +19,22 @@ Because a Slack app can only have **one Event Subscriptions URL** and **one
 Interactivity URL**, all Slack traffic across every workflow (guest alerts,
 stay channels, receipts, tasks) flows through two unified Lambda endpoints:
 
-| Workflow | Events (message.*) | Interactivity (buttons) | Slash commands |
+| Workflow | Events (message.*) | Interactivity (buttons + modals) | Slash commands |
 |---|---|---|---|
 | Guest alerts | `/slack/events` | — | — |
 | Stay channels | `/slack/events` | `/slack/interactions` | — |
 | Receipts | `/slack/events` | `/slack/interactions` | — |
-| Tasks | — (none today) | `/slack/interactions` ❓ | `/task` → own URL |
+| Tasks | `/slack/events` | `/slack/interactions` | `/task` → `/slack/tasks/commands` |
 
 `thread_handler.slack_events_handler` dispatches based on channel ID +
-subtype (for events) and `action_id` prefix (for interactions). The
-`/slack/expenses/events` and `/slack/tasks/events` routes in `template.yaml`
-are legacy from an earlier multi-app design and are unreachable from Slack
-with the current single-app setup — safe to leave in place as dead code,
-delete in a future cleanup PR.
+subtype (for events) and `action_id` / `callback_id` (for interactions).
+The `/slack/expenses/events`, `/slack/expenses/interactions`,
+`/slack/tasks/events`, and `/slack/tasks/interactions` routes in
+`template.yaml` are legacy from an earlier multi-app design and are
+unreachable from Slack with the current single-app setup — safe to leave
+in place as dead code, delete in a future cleanup PR. The task slash
+command keeps its own URL (`/slack/tasks/commands`) since Slack
+configures slash-command Request URLs per-command.
 
 ### Scopes
 

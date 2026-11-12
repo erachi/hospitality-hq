@@ -2,15 +2,20 @@
 `thread_handler`.
 
 The Hospitality HQ workspace runs a single Slack app, so every Events
-API delivery and every block_actions click flows through the one
-`thread_handler.slack_events_handler` Lambda. Dispatch happens on
-channel ID (events) and action_id (interactions). These tests cover
-the three new branches:
+API delivery and every block_actions / view_submission flows through
+the one `thread_handler.slack_events_handler` Lambda. Dispatch happens
+on channel ID (events) and action_id / callback_id (interactions).
+
+Covered here:
 
 1. `file_share` in #receipts → `expense_handler.process_file_share`
-2. Expense-card button clicks → `expense_handler.process_interaction`
-3. Non-matching events/clicks are not accidentally routed to the
-   expense pipeline.
+2. Thread replies in #tasks → `task_handler.process_thread_reply`
+3. Expense-card button clicks → `expense_handler.process_interaction`
+4. Task-card button clicks → `task_handler.process_interaction`
+5. Task-modal view_submission → `task_handler.process_interaction`,
+   with its response_action payload propagated back to Slack.
+6. Negative-case guards against wrong-channel / non-file_share /
+   bot-loop / unknown-action / cross-workflow leakage.
 """
 
 import hashlib
@@ -24,6 +29,7 @@ from thread_handler import _process_event, _process_interaction, slack_events_ha
 
 
 _EXPENSES_CHANNEL = "C_TEST_EXPENSES"  # matches conftest EXPENSES_CHANNEL_ID
+_TASKS_CHANNEL = "C_TEST_TASKS"        # matches conftest TASKS_CHANNEL_ID
 _STAY_CHANNEL = "C_TEST_CHANNEL"       # matches conftest SLACK_CHANNEL_ID (guest-alerts)
 _SIGNING_SECRET = "test-slack-signing-secret"
 
@@ -188,3 +194,169 @@ def test_signed_expense_interaction_reaches_expense_handler(_secret):
         response = slack_events_handler(event, None)
     assert response["statusCode"] == 200
     mock_process.assert_called_once()
+
+
+# ─── Task dispatch ──────────────────────────────────────────────────────
+
+
+def _task_thread_reply_envelope(channel: str, user: str = "UVJ") -> dict:
+    """Shape of a Slack Events thread-reply callback in the tasks channel."""
+    return {
+        "type": "event_callback",
+        "event": {
+            "type": "message",
+            "channel": channel,
+            "user": user,
+            "text": "picked this up",
+            "ts": "1700000000.000200",
+            "thread_ts": "1700000000.000100",
+        },
+    }
+
+
+def test_thread_reply_in_tasks_channel_routes_to_task_handler():
+    envelope = _task_thread_reply_envelope(_TASKS_CHANNEL)
+    with patch("task_handler.process_thread_reply") as mock_process:
+        _process_event(envelope)
+    mock_process.assert_called_once()
+    (inner_arg,) = mock_process.call_args.args
+    assert inner_arg["channel"] == _TASKS_CHANNEL
+    assert inner_arg["thread_ts"] == "1700000000.000100"
+
+
+def test_top_level_message_in_tasks_channel_still_routes_to_task_handler():
+    """The task handler also wants to see non-thread messages so it can
+    skip them — the channel-level filter is the trigger, not the thread_ts."""
+    envelope = _task_thread_reply_envelope(_TASKS_CHANNEL)
+    envelope["event"].pop("thread_ts")
+    with patch("task_handler.process_thread_reply") as mock_process:
+        _process_event(envelope)
+    mock_process.assert_called_once()
+
+
+def test_thread_reply_in_wrong_channel_is_not_routed_to_tasks():
+    """A thread reply in some unrelated channel must not reach the
+    task comment pipeline."""
+    envelope = _task_thread_reply_envelope("C_RANDOM")
+    with patch("task_handler.process_thread_reply") as mock_process:
+        _process_event(envelope)
+    mock_process.assert_not_called()
+
+
+def test_task_mark_done_action_dispatches_to_task_handler():
+    body = _block_actions_payload("task_mark_done")
+    with patch("task_handler.process_interaction") as mock_process:
+        _process_interaction(body)
+    mock_process.assert_called_once()
+    payload = mock_process.call_args.args[0]
+    assert payload["actions"][0]["action_id"] == "task_mark_done"
+
+
+def test_every_task_action_dispatches_to_task_handler():
+    from task_handler import TASK_ACTION_IDS
+
+    for action_id in TASK_ACTION_IDS:
+        body = _block_actions_payload(action_id)
+        with patch("task_handler.process_interaction") as mock_process:
+            _process_interaction(body)
+        assert mock_process.call_count == 1, action_id
+
+
+def test_task_action_does_not_reach_expense_handler():
+    """Guardrail — task actions must not leak into the expense pipeline."""
+    body = _block_actions_payload("task_mark_done")
+    with patch("expense_handler.process_interaction") as mock_exp, patch(
+        "task_handler.process_interaction"
+    ) as mock_task:
+        _process_interaction(body)
+    mock_exp.assert_not_called()
+    mock_task.assert_called_once()
+
+
+def _view_submission_payload(callback_id: str) -> str:
+    inner = {
+        "type": "view_submission",
+        "user": {"id": "UVJ", "name": "vj"},
+        "view": {
+            "callback_id": callback_id,
+            "state": {"values": {}},
+        },
+    }
+    return urlencode({"payload": json.dumps(inner)})
+
+
+def test_task_view_submission_dispatches_to_task_handler():
+    from task_slack_ui import CREATE_MODAL_CALLBACK_ID
+
+    body = _view_submission_payload(CREATE_MODAL_CALLBACK_ID)
+    with patch("task_handler.process_interaction") as mock_process:
+        mock_process.return_value = None
+        _process_interaction(body)
+    mock_process.assert_called_once()
+
+
+def test_task_view_submission_response_propagates_back_to_slack():
+    """When the task modal validation fails, the response_action payload
+    must reach Slack so the modal stays open with inline errors."""
+    from task_slack_ui import CREATE_MODAL_CALLBACK_ID
+
+    errors_response = {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(
+            {"response_action": "errors", "errors": {"title_block": "Give it a title."}}
+        ),
+    }
+    body = _view_submission_payload(CREATE_MODAL_CALLBACK_ID)
+    with patch("task_handler.process_interaction", return_value=errors_response):
+        response = _process_interaction(body)
+    assert response == errors_response
+
+
+def test_unknown_view_submission_is_ignored():
+    body = _view_submission_payload("some_other_modal")
+    with patch("task_handler.process_interaction") as mock_task:
+        response = _process_interaction(body)
+    assert response is None
+    mock_task.assert_not_called()
+
+
+@patch("thread_handler.get_slack_signing_secret", return_value=_SIGNING_SECRET)
+def test_signed_task_thread_reply_reaches_task_handler(_secret):
+    envelope = _task_thread_reply_envelope(_TASKS_CHANNEL)
+    event = _signed_event(json.dumps(envelope))
+    with patch("task_handler.process_thread_reply") as mock_process:
+        response = slack_events_handler(event, None)
+    assert response["statusCode"] == 200
+    mock_process.assert_called_once()
+
+
+@patch("thread_handler.get_slack_signing_secret", return_value=_SIGNING_SECRET)
+def test_signed_task_interaction_reaches_task_handler(_secret):
+    body = _block_actions_payload("task_start")
+    event = _signed_event(body, content_type="application/x-www-form-urlencoded")
+    with patch("task_handler.process_interaction") as mock_process:
+        response = slack_events_handler(event, None)
+    assert response["statusCode"] == 200
+    mock_process.assert_called_once()
+
+
+@patch("thread_handler.get_slack_signing_secret", return_value=_SIGNING_SECRET)
+def test_signed_task_view_submission_errors_reach_slack(_secret):
+    """End-to-end: a view_submission validation error must flow through
+    the signed entry point back to Slack."""
+    from task_slack_ui import CREATE_MODAL_CALLBACK_ID
+
+    errors_body = json.dumps(
+        {"response_action": "errors", "errors": {"title_block": "nope"}}
+    )
+    errors_response = {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": errors_body,
+    }
+    body = _view_submission_payload(CREATE_MODAL_CALLBACK_ID)
+    event = _signed_event(body, content_type="application/x-www-form-urlencoded")
+    with patch("task_handler.process_interaction", return_value=errors_response):
+        response = slack_events_handler(event, None)
+    assert response == errors_response

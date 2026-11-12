@@ -325,6 +325,7 @@ Resources:
           EXPENSES_CHANNEL_ID: !Ref ExpensesChannelId
           EXPENSES_BUCKET: !Ref ExpensesBucketName
           TASKS_BUCKET: !Ref TasksBucketName
+          TASKS_CHANNEL_ID: !Ref TasksChannelId
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadMappingTable
@@ -345,7 +346,7 @@ Resources:
               Resource: !Sub "arn:aws:s3:::${TasksBucketName}"
               Condition:
                 StringLike:
-                  s3:prefix: ["stays/*"]
+                  s3:prefix: ["stays/*", "tasks/*", "indexes/*"]
         # Expense pipeline also reads properties.json from the tasks bucket
         # (post_confirmation_card → TaskStore().load_properties()).
         - Statement:
@@ -353,6 +354,19 @@ Resources:
               Action:
                 - s3:GetObject
               Resource: !Sub "arn:aws:s3:::${TasksBucketName}/config/*"
+        # Task pipeline: thread replies as comments, modal creates, and
+        # button clicks (status + assignee changes) all route here now
+        # that /slack/interactions is unified. Scoped to the two prefixes
+        # task_store writes: tasks/<id>.json and indexes/slack/<ts>.json.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Sub "arn:aws:s3:::${TasksBucketName}/tasks/*"
+                - !Sub "arn:aws:s3:::${TasksBucketName}/indexes/*"
         # Expense pipeline: full access to the expenses bucket for ingest.
         # Scoped to the three prefixes the pipeline actually writes, plus
         # ListBucket on those prefixes for idempotency lookups.

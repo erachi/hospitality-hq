@@ -19,6 +19,14 @@ Routes three kinds of Slack traffic, all arriving over API Gateway:
 Signature verification reuses the same Slack v0 scheme as thread_handler.py.
 Slash commands and interactive components are both form-urlencoded, so the
 body parsing branches on content-type.
+
+The Hospitality HQ workspace runs a SINGLE Slack app, so the Events API
+and Interactivity URLs serve every workflow through `thread_handler`.
+The public entry points `process_interaction` and `process_thread_reply`
+below let the unified handler hand task-shaped payloads back here without
+going over HTTP. The legacy `slack_tasks_handler` still works if anyone
+ever points the `/slack/tasks/*` routes at it (slash commands have per-
+command URLs in Slack, so `/slack/tasks/commands` is still reachable).
 """
 
 import base64
@@ -501,10 +509,75 @@ def _thread_reply(task: Task, text: str) -> None:
     )
 
 
+# ─── Public entry points for the unified dispatch ───────────────────────
+
+
+TASK_ACTION_IDS = {
+    "task_mark_done",
+    "task_reopen",
+    "task_start",
+    "task_unstart",
+    "task_block",
+    "task_unblock",
+    "task_swap_assignee",
+}
+
+
+def is_task_action(action_id: str) -> bool:
+    """Public: true if this action_id belongs to a task card.
+
+    Used by `thread_handler`'s unified interaction dispatch to decide
+    whether to hand the payload to `process_interaction`.
+    """
+    return action_id in TASK_ACTION_IDS
+
+
+def is_task_view_submission(payload: dict) -> bool:
+    """Public: true if this view_submission payload is the task create modal."""
+    if payload.get("type") != "view_submission":
+        return False
+    view = payload.get("view") or {}
+    return view.get("callback_id") == CREATE_MODAL_CALLBACK_ID
+
+
+def process_interaction(payload: dict) -> Optional[dict]:
+    """Public entry point: handle a task card block_actions click or a
+    task-modal view_submission.
+
+    Called from the unified `thread_handler._process_interaction` when
+    `is_task_action` or `is_task_view_submission` matches. Returns the
+    HTTP response dict for view_submission payloads (so Slack can show
+    validation errors inline); returns None for block_actions, where
+    Slack only needs an empty 200.
+    """
+    kind = payload.get("type")
+    if kind == "view_submission":
+        return _handle_view_submission(payload)
+    if kind == "block_actions":
+        _handle_block_actions(payload)
+        return None
+    logger.info(f"Ignoring task interaction type: {kind}")
+    return None
+
+
+def process_thread_reply(inner_event: dict) -> None:
+    """Public entry point: process an inner message event as a task-thread reply.
+
+    Called from the unified `thread_handler._process_event` when a thread
+    reply lands in `TASKS_CHANNEL_ID`. Does its own guards so callers
+    don't need to pre-filter.
+    """
+    _route_inner_event(inner_event)
+
+
 # ─── Events API: thread replies become comments ──────────────────────────
 
 
 def _route_event(payload: dict) -> dict:
+    """Internal: unwrap Events API envelope, then delegate to shared code.
+
+    Still used by the legacy `slack_tasks_handler` entry point.
+    """
     ptype = payload.get("type")
     if ptype == "url_verification":
         return {
@@ -515,34 +588,39 @@ def _route_event(payload: dict) -> dict:
     if ptype != "event_callback":
         return _ok()
 
-    inner = payload.get("event", {}) or {}
+    _route_inner_event(payload.get("event", {}) or {})
+    return _ok()
+
+
+def _route_inner_event(inner: dict) -> None:
+    """Shared inner-event handling for both the legacy and unified paths."""
     if inner.get("type") != "message":
-        return _ok()
+        return
     subtype = inner.get("subtype")
     if subtype and subtype not in ("file_share",):
-        return _ok()
+        return
     if inner.get("bot_id") or inner.get("app_id"):
-        return _ok()
+        return
 
     thread_ts = inner.get("thread_ts")
     ts = inner.get("ts")
     if not thread_ts or thread_ts == ts:
-        return _ok()
+        return
 
     channel = inner.get("channel", "")
     if TASKS_CHANNEL_ID and channel != TASKS_CHANNEL_ID:
-        return _ok()
+        return
 
     store = TaskStore()
     task = store.get_task_by_thread(thread_ts)
     if not task:
         # Could be a guest-alert thread in the same channel (shouldn't happen
         # if channels are separate, but be defensive).
-        return _ok()
+        return
 
     text = (inner.get("text") or "").strip()
     if not text:
-        return _ok()
+        return
 
     user_slack_id = inner.get("user", "")
     user = store.get_user_by_slack_id(user_slack_id)
@@ -550,7 +628,6 @@ def _route_event(payload: dict) -> dict:
 
     task.comments.append(Comment.new(user_id=user_id, body=text, slack_message_ts=ts))
     store.put(task)
-    return _ok()
 
 
 # ─── Signing + helpers ───────────────────────────────────────────────────
