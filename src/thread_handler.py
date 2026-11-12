@@ -27,6 +27,7 @@ from config import (
     EXPENSES_CHANNEL_ID,
     SLACK_CHANNEL_ID,
     STAY_CHANNELS_ENABLED,
+    TASKS_CHANNEL_ID,
 )
 from slack_notifier import post_thread_reply
 from stay_channels import StayChannels
@@ -92,11 +93,15 @@ def slack_events_handler(event, context):
     # Everything else (Events API) is application/json.
     ctype = headers.get("content-type", "")
     if "application/x-www-form-urlencoded" in ctype:
+        response = None
         try:
-            _process_interaction(raw_body)
+            response = _process_interaction(raw_body)
         except Exception as e:
             logger.exception(f"Error processing Slack interaction: {e}")
-        return _ok()
+        # view_submission dispatches may return a response_action payload
+        # (e.g. field-level errors that keep the modal open). Everything
+        # else only needs an empty 200.
+        return response or _ok()
 
     # Parse payload
     try:
@@ -175,7 +180,15 @@ def _process_event(payload: dict) -> None:
         process_file_share(inner)
         return
 
-    # Route 3: #guest-alerts thread replies (the original flow).
+    # Route 3: thread replies in the tasks channel become task comments.
+    # Same single-app rationale: all Events deliveries land here.
+    if TASKS_CHANNEL_ID and channel == TASKS_CHANNEL_ID:
+        from task_handler import process_thread_reply
+
+        process_thread_reply(inner)
+        return
+
+    # Route 4: #guest-alerts thread replies (the original flow).
     thread_ts = inner.get("thread_ts")
     ts = inner.get("ts")
     if not thread_ts or thread_ts == ts:
@@ -249,53 +262,80 @@ def _process_stay_channel_event(inner: dict, stay_row: dict) -> None:
     handle_channel_message(inner, stay_row)
 
 
-def _process_interaction(raw_body: str) -> None:
+def _process_interaction(raw_body: str) -> dict | None:
     """Dispatch a Slack interactivity POST.
 
     Slack posts block_actions / view_submission as
     `application/x-www-form-urlencoded` with the payload JSON under a
     single `payload=` key.
+
+    Returns the HTTP response dict when the dispatched handler needs
+    Slack to see a body (view_submission validation errors, modal
+    navigation). Returns None when an empty 200 is fine — the caller
+    turns None into `_ok()`.
     """
     parsed = parse_qs(raw_body or "")
     raw_payload = (parsed.get("payload") or [""])[0]
     if not raw_payload:
         logger.warning("Interaction POST missing payload field")
-        return
+        return None
     try:
         payload = json.loads(raw_payload)
     except json.JSONDecodeError:
         logger.warning("Interaction payload is not JSON")
-        return
+        return None
 
     kind = payload.get("type")
+
+    # View submissions: route by callback_id. The task-create modal is the
+    # only view_submission in the workspace today.
+    if kind == "view_submission":
+        from task_handler import is_task_view_submission
+        from task_handler import process_interaction as task_process_interaction
+
+        if is_task_view_submission(payload):
+            return task_process_interaction(payload)
+        callback_id = (payload.get("view") or {}).get("callback_id")
+        logger.info(f"Ignoring view_submission callback_id: {callback_id}")
+        return None
+
     if kind != "block_actions":
         logger.info(f"Ignoring interaction type: {kind}")
-        return
+        return None
 
     actions = payload.get("actions") or []
     if not actions:
-        return
+        return None
     action_id = (actions[0] or {}).get("action_id", "")
 
     # Stay-channel draft buttons.
     if action_id == "stay_send_draft":
         from stay_agent import handle_send_draft
         handle_send_draft(payload)
-        return
+        return None
     if action_id == "stay_discard_draft":
         from stay_agent import handle_discard_draft
         handle_discard_draft(payload)
-        return
+        return None
+
+    # Task-card buttons (Mark done / Start / Block / Swap / Reopen).
+    # Same single-app rationale as the file_share route in _process_event.
+    from task_handler import is_task_action
+    from task_handler import process_interaction as task_process_interaction
+
+    if is_task_action(action_id):
+        task_process_interaction(payload)
+        return None
 
     # Expense-card buttons (File it / Skip / Split / property+category selects).
-    # Same single-app rationale as the file_share route in _process_event.
     from expense_handler import is_expense_action, process_interaction
 
     if is_expense_action(action_id):
         process_interaction(payload)
-        return
+        return None
 
     logger.info(f"Ignoring unknown interaction action: {action_id}")
+    return None
 
 
 def _classify_intent(text: str) -> tuple[str, str]:
