@@ -347,6 +347,57 @@ def test_send_draft_calls_hospitable_and_journals_sent(
 
 
 @mock_aws
+def test_send_draft_marks_awaiting_host_webhook_on_success(
+    stay_channels_table, stay_journal_bucket
+):
+    """After a successful send, Hospitable fires a message.created webhook
+    with sender_type=host for the same message, which will append a
+    SOURCE_HOSPITABLE_HOST entry with the canonical body. The SOURCE_SYSTEM
+    audit entry carries awaiting_host_webhook=True so the agent (and humans)
+    can tell the audit record from the canonical message record."""
+    _seed_live_stay()
+    hospitable = MagicMock()
+    hospitable.send_reservation_message.return_value = {"ok": True}
+    slack = MagicMock()
+
+    with patch("stay_agent._update_card_as_status"):
+        handle_send_draft(
+            _draft_action_payload(action_id="stay_send_draft"),
+            hospitable_client=hospitable,
+            slack_client=slack,
+        )
+
+    last = StayStore().get("res-x").entries[-1]
+    assert last.source == SOURCE_SYSTEM
+    assert last.metadata["draft_state"] == "sent"
+    assert last.metadata["awaiting_host_webhook"] is True
+
+
+@mock_aws
+def test_send_draft_does_not_await_host_webhook_on_failure(
+    stay_channels_table, stay_journal_bucket
+):
+    """A failed send gets no follow-up host webhook, so awaiting_host_webhook
+    must be False — otherwise the agent would keep waiting on an entry that
+    will never arrive."""
+    _seed_live_stay()
+    hospitable = MagicMock()
+    hospitable.send_reservation_message.side_effect = RuntimeError("500 bad")
+    slack = MagicMock()
+
+    with patch("stay_agent._update_card_as_status"):
+        handle_send_draft(
+            _draft_action_payload(action_id="stay_send_draft"),
+            hospitable_client=hospitable,
+            slack_client=slack,
+        )
+
+    last = StayStore().get("res-x").entries[-1]
+    assert last.metadata["draft_state"] == "failed"
+    assert last.metadata["awaiting_host_webhook"] is False
+
+
+@mock_aws
 def test_send_draft_records_failure_when_hospitable_errors(
     stay_channels_table, stay_journal_bucket
 ):

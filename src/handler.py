@@ -324,6 +324,30 @@ def process_conversation(
     if not messages:
         return
 
+    # Mirror every Hospitable message (guest + host) into the stay channel
+    # BEFORE filtering for alerting. mirror_message is idempotent via the
+    # StayChannels row's last_mirrored_hospitable_ts, so running this on
+    # every poll is safe. Host-sent messages (Maggie/VJ replying from the
+    # Hospitable PMS UI) don't fire actionable webhooks, so this is the
+    # only path that gets them into the journal after provisioning — and
+    # the ambient stay-channel agent reads only from the journal.
+    if STAY_CHANNELS_ENABLED and not is_inquiry:
+        stay_slack_client = StayChannelSlackClient()
+        for msg in messages:
+            if msg.get("sender_type") not in ("guest", "host"):
+                continue
+            try:
+                mirror_message(
+                    reservation_uuid=res_uuid,
+                    message=msg,
+                    slack_client=stay_slack_client,
+                    guest_name=guest_name,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Mirror failed for {res_uuid}/{msg.get('id', '')}: {e}"
+                )
+
     cutoff = datetime.now(timezone.utc) - timedelta(hours=_get_lookback_hours())
 
     # Hospitable returns messages chronologically (oldest first), so a later
@@ -472,22 +496,6 @@ def process_conversation(
             is_inquiry=is_inquiry,
             stay_channel_id=stay_channel_id,
         )
-
-        # Mirror the Hospitable message into the stay channel (if any).
-        # Called AFTER the #guest-alerts post so a mirror failure never
-        # loses the primary alert. The provisioner was invoked earlier
-        # in process_reservation; this call is a safety net for the
-        # messages the webhook didn't deliver.
-        if STAY_CHANNELS_ENABLED and not is_inquiry:
-            try:
-                mirror_message(
-                    reservation_uuid=res_uuid,
-                    message=msg,
-                    slack_client=StayChannelSlackClient(),
-                    guest_name=guest_name,
-                )
-            except Exception as e:
-                logger.warning(f"Mirror failed for {res_uuid}/{msg_id}: {e}")
 
         if slack_result.get("ok"):
             stats["alerts_posted"] += 1

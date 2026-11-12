@@ -263,6 +263,11 @@ def handle_send_draft(
 
     now_iso = _now_iso()
     outcome = "sent" if sent else "failed"
+    # On a successful send, Hospitable fires a message.created webhook with
+    # sender_type=host for this same message a few seconds later; the webhook
+    # handler appends a SOURCE_HOSPITABLE_HOST entry with the canonical body.
+    # Keep both entries — this one is the click-audit (who sent, when, outcome);
+    # the host entry is the canonical outbound message as Hospitable stored it.
     entry = StayEntry.new(
         source=SOURCE_SYSTEM,
         author=user,
@@ -274,6 +279,7 @@ def handle_send_draft(
             "draft_state": outcome,
             "draft_text": draft_text,
             "slack_user": user,
+            "awaiting_host_webhook": sent,
         },
     )
     try:
