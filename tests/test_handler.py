@@ -84,7 +84,13 @@ def test_handler_processes_new_guest_messages(
 @mock_aws
 @patch("handler.HospitableClient")
 def test_handler_skips_host_messages(mock_hospitable, dynamodb_table):
-    """Handler should ignore host/automated messages."""
+    """Handler should never alert on host/automated messages.
+
+    The stay-channel mirror pass may still fire for a host message when the
+    stay-channels feature is on (see test_poller_mirrors_host_messages_*),
+    but STAY_CHANNELS_ENABLED defaults to False in the test env, so this
+    test only guards the alert-pipeline invariant.
+    """
     mock_client = MagicMock()
     mock_hospitable.return_value = mock_client
 
@@ -117,6 +123,119 @@ def test_handler_skips_host_messages(mock_hospitable, dynamodb_table):
     body = json.loads(result["body"])
     assert body["new_messages_found"] == 0
     assert body["alerts_posted"] == 0
+
+
+@mock_aws
+@patch("handler.STAY_CHANNELS_ENABLED", True)
+@patch("handler.StayChannelSlackClient")
+@patch("handler.mirror_message")
+@patch("handler.HospitableClient")
+@patch("handler.classify_message")
+@patch("handler.draft_response")
+@patch("handler.summarize_conversation", return_value="")
+@patch("handler.post_guest_alert")
+def test_poller_mirrors_host_messages_in_conversation(
+    mock_slack, mock_summary, mock_draft, mock_classify,
+    mock_hospitable, mock_mirror, mock_stay_slack, dynamodb_table,
+):
+    """A [guest, host] pair must mirror both messages into the stay journal
+    even when the guest message is marked ANSWERED (no alert posted). This is
+    the fix for the ambient agent missing host replies sent from the PMS."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-mirror-1",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-guest",
+            "body": "AC is broken",
+            "sender_type": "guest",
+            "source": "platform",
+            "created_at": "2026-04-20T22:00:00Z",
+        },
+        {
+            "id": "msg-host",
+            "body": "Technician coming at 4pm",
+            "sender_type": "host",
+            "source": "manual",
+            "created_at": "2026-04-20T22:30:00Z",
+        },
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    result = lambda_handler({}, None)
+
+    import json as _json
+    body = _json.loads(result["body"])
+    # Guest is ANSWERED — no alert posted.
+    assert body["alerts_posted"] == 0
+    mock_slack.assert_not_called()
+
+    # But BOTH messages mirror into the stay journal.
+    assert mock_mirror.call_count == 2
+    sender_types = [
+        call.kwargs["message"].get("sender_type")
+        for call in mock_mirror.call_args_list
+    ]
+    assert sender_types == ["guest", "host"]
+
+
+@mock_aws
+@patch("handler.STAY_CHANNELS_ENABLED", True)
+@patch("handler.StayChannelSlackClient")
+@patch("handler.mirror_message")
+@patch("handler.HospitableClient")
+@patch("handler.post_guest_alert")
+def test_poller_mirrors_host_only_conversation(
+    mock_slack, mock_hospitable, mock_mirror, mock_stay_slack, dynamodb_table,
+):
+    """Simulates a host-only message in the API response (e.g. webhook outage
+    where the guest message was already mirrored and only the host reply
+    remains unseen). Mirror fires once; alert pipeline is untouched."""
+    mock_client = MagicMock()
+    mock_hospitable.return_value = mock_client
+
+    mock_client.get_active_reservations.return_value = [
+        {
+            "id": "res-host-only",
+            "property_id": "prop-1",
+            "property_name": "Villa Bougainvillea",
+            "check_in": "2026-04-20T16:00:00-07:00",
+            "check_out": "2026-04-25T11:00:00-07:00",
+            "status": "accepted",
+            "platform": "airbnb",
+            "guest": {"first_name": "Jane", "full_name": "Jane Smith"},
+        }
+    ]
+    mock_client.get_reservation_messages.return_value = [
+        {
+            "id": "msg-host-only",
+            "body": "Odor spray arriving tomorrow 3-6 AM",
+            "sender_type": "host",
+            "source": "manual",
+            "created_at": "2026-04-20T22:30:00Z",
+        }
+    ]
+    mock_client.get_property.return_value = {"description": "desc"}
+    mock_client.get_property_knowledge_hub.return_value = {"topics": []}
+
+    lambda_handler({}, None)
+
+    mock_mirror.assert_called_once()
+    assert mock_mirror.call_args.kwargs["message"]["sender_type"] == "host"
+    mock_slack.assert_not_called()
 
 
 @mock_aws

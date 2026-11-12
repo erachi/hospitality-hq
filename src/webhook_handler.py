@@ -72,19 +72,7 @@ def webhook_handler(event, context):
         return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "not message.created"})}
 
     data = payload.get("data", {})
-
-    # Step 4: Filter — only process guest messages
-    sender_type = data.get("sender_type", "")
-    if sender_type != "guest":
-        logger.info(f"Ignoring non-guest message (sender_type: {sender_type})")
-        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "not guest message"})}
-
-    # Step 5: Dedup — check if already processed.
-    # The webhook event id (`payload["id"]`) is the DELIVERY id, not a message
-    # id — the hourly poller sees API message objects, not webhook events, and
-    # a key built from the event id would never collide with the poller's key.
-    # Both paths now derive the same dedup key from fields both payloads carry
-    # (created_at + body hash), via message_dedup_key().
+    sender_type = (data.get("sender_type") or "").lower()
     webhook_id = payload.get("id", "")
     reservation_id = data.get("reservation_id") or ""
 
@@ -100,6 +88,26 @@ def webhook_handler(event, context):
         logger.warning(f"Missing reservation_id and conversation_id (webhook event {webhook_id})")
         return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "missing ids"})}
 
+    # Step 4: Branch on sender_type.
+    #   - "host": mirror into the stay journal + channel so the ambient
+    #     agent sees replies Maggie/VJ typed into the Hospitable PMS. No
+    #     StateTracker dedup row (the alert pipeline never runs for host
+    #     messages), mirror_message has its own idempotency gate.
+    #   - "guest": the full classify/draft/notify pipeline below.
+    #   - anything else (automated/system/empty): ignore outright.
+    if sender_type == "host":
+        return _handle_host_webhook_message(data, reservation_id, webhook_id, is_inquiry)
+
+    if sender_type != "guest":
+        logger.info(f"Ignoring webhook with sender_type={sender_type!r}")
+        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": f"sender_type={sender_type}"})}
+
+    # Step 5: Dedup — check if already processed.
+    # The webhook event id (`payload["id"]`) is the DELIVERY id, not a message
+    # id — the hourly poller sees API message objects, not webhook events, and
+    # a key built from the event id would never collide with the poller's key.
+    # Both paths now derive the same dedup key from fields both payloads carry
+    # (created_at + body hash), via message_dedup_key().
     dedup_key = message_dedup_key(reservation_id, data)
 
     tracker = StateTracker()
@@ -127,6 +135,31 @@ def webhook_handler(event, context):
             f"(reservation {reservation_id}): {e}"
         )
         return {"statusCode": 200, "body": json.dumps({"status": "error", "error": str(e)})}
+
+
+def _handle_host_webhook_message(
+    data: dict, reservation_id: str, webhook_id: str, is_inquiry: bool,
+) -> dict:
+    """Mirror a host reply into the stay journal + channel.
+
+    No alert, no StateTracker row — the guest-alert pipeline is guest-only.
+    Inquiries have no stay channel so we skip them outright.
+    """
+    if not STAY_CHANNELS_ENABLED or is_inquiry:
+        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "host, no stay channel"})}
+
+    try:
+        mirror_message(
+            reservation_uuid=reservation_id,
+            message=data,
+            slack_client=StayChannelSlackClient(),
+            guest_name="",
+        )
+    except Exception as e:
+        logger.warning(f"Host mirror failed for webhook event {webhook_id}: {e}")
+        return {"statusCode": 200, "body": json.dumps({"status": "error", "error": str(e)})}
+
+    return {"statusCode": 200, "body": json.dumps({"status": "mirrored", "sender_type": "host"})}
 
 
 def process_webhook_message(

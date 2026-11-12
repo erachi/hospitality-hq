@@ -181,14 +181,99 @@ def test_webhook_rejects_invalid_signature(mock_secret, dynamodb_table):
 
 @mock_aws
 @patch("webhook_handler.get_webhook_secret", return_value=WEBHOOK_SIGNING_SECRET)
-def test_webhook_ignores_non_guest_message(mock_secret, dynamodb_table):
-    """Non-guest messages should be acknowledged but not processed."""
+def test_webhook_ignores_truly_non_guest_sender(mock_secret, dynamodb_table):
+    """Automated/system/empty sender_type is acknowledged and dropped — only
+    "guest" (alert pipeline) and "host" (mirror pipeline) do real work."""
     payload = {
         "id": "webhook-evt-002",
         "action": "message.created",
         "data": {
             "reservation_id": "res-123",
-            "body": "Welcome!",
+            "body": "Automated check-in reminder",
+            "sender_type": "automated",
+        },
+    }
+    event = _make_webhook_event(payload)
+
+    result = webhook_handler(event, None)
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["status"] == "ignored"
+    assert "automated" in body["reason"]
+
+
+@mock_aws
+@patch("webhook_handler.get_webhook_secret", return_value=WEBHOOK_SIGNING_SECRET)
+@patch("webhook_handler.STAY_CHANNELS_ENABLED", True)
+@patch("webhook_handler.StayChannelSlackClient")
+@patch("webhook_handler.mirror_message")
+@patch("webhook_handler.classify_message")
+@patch("webhook_handler.draft_response")
+@patch("webhook_handler.post_guest_alert")
+def test_webhook_host_message_mirrors_only(
+    mock_slack, mock_draft, mock_classify, mock_mirror, mock_stay_slack,
+    mock_secret, dynamodb_table,
+):
+    """A host message (Maggie/VJ reply typed into the Hospitable PMS) must
+    mirror into the stay journal + channel but never reach the alert path.
+
+    Before this fix the webhook early-returned on sender_type != "guest",
+    which left the ambient agent blind to anything sent from the PMS UI."""
+    from state_tracker import StateTracker, message_dedup_key
+
+    payload = {
+        "id": "webhook-evt-host-1",
+        "action": "message.created",
+        "data": {
+            "reservation_id": "res-host-abc",
+            "body": "Odor spray is on the way, arriving between 3-6 AM.",
+            "sender_type": "host",
+            "created_at": "2026-11-12T16:30:00Z",
+        },
+    }
+    event = _make_webhook_event(payload)
+
+    result = webhook_handler(event, None)
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["status"] == "mirrored"
+    assert body["sender_type"] == "host"
+
+    # Mirror called exactly once with the webhook data as the message.
+    mock_mirror.assert_called_once()
+    kwargs = mock_mirror.call_args.kwargs
+    assert kwargs["reservation_uuid"] == "res-host-abc"
+    assert kwargs["message"] == payload["data"]
+
+    # Alert pipeline is NOT invoked.
+    mock_classify.assert_not_called()
+    mock_draft.assert_not_called()
+    mock_slack.assert_not_called()
+
+    # No StateTracker dedup row created (reserved for the guest-alert path).
+    dedup_key = message_dedup_key("res-host-abc", payload["data"])
+    assert StateTracker().is_message_processed("res-host-abc", dedup_key) is False
+
+
+@mock_aws
+@patch("webhook_handler.get_webhook_secret", return_value=WEBHOOK_SIGNING_SECRET)
+@patch("webhook_handler.STAY_CHANNELS_ENABLED", True)
+@patch("webhook_handler.StayChannelSlackClient")
+@patch("webhook_handler.mirror_message")
+def test_webhook_host_message_on_inquiry_is_ignored(
+    mock_mirror, mock_stay_slack, mock_secret, dynamodb_table,
+):
+    """Inquiries never have a stay channel, so a host webhook on an inquiry
+    (reservation_id missing, conversation_id present) is ignored, not mirrored."""
+    payload = {
+        "id": "webhook-evt-host-inq",
+        "action": "message.created",
+        "data": {
+            "reservation_id": None,
+            "conversation_id": "inq-xyz",
+            "body": "Reply to inquiry",
             "sender_type": "host",
         },
     }
@@ -199,7 +284,39 @@ def test_webhook_ignores_non_guest_message(mock_secret, dynamodb_table):
     assert result["statusCode"] == 200
     body = json.loads(result["body"])
     assert body["status"] == "ignored"
-    assert body["reason"] == "not guest message"
+    assert "stay channel" in body["reason"]
+    mock_mirror.assert_not_called()
+
+
+@mock_aws
+@patch("webhook_handler.get_webhook_secret", return_value=WEBHOOK_SIGNING_SECRET)
+@patch("webhook_handler.STAY_CHANNELS_ENABLED", True)
+@patch("webhook_handler.StayChannelSlackClient")
+@patch("webhook_handler.mirror_message", side_effect=RuntimeError("s3 down"))
+def test_webhook_host_message_mirror_failure_returns_200(
+    mock_mirror, mock_stay_slack, mock_secret, dynamodb_table,
+):
+    """A mirror failure must not surface as a 5xx — Hospitable would retry
+    the webhook and spam the journal. Return 200 with an error body; the
+    hourly poller will backfill from the API."""
+    payload = {
+        "id": "webhook-evt-host-fail",
+        "action": "message.created",
+        "data": {
+            "reservation_id": "res-abc",
+            "body": "will fail to mirror",
+            "sender_type": "host",
+            "created_at": "2026-11-12T17:00:00Z",
+        },
+    }
+    event = _make_webhook_event(payload)
+
+    result = webhook_handler(event, None)
+
+    assert result["statusCode"] == 200
+    body = json.loads(result["body"])
+    assert body["status"] == "error"
+    mock_mirror.assert_called_once()
 
 
 @mock_aws
