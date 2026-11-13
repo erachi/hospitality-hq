@@ -31,12 +31,8 @@ Also houses the draft-card button handlers (`stay_send_draft`,
 Slack channel the agent writes to. Edit is deferred to a later PR.
 """
 
-import json
 import logging
-from datetime import datetime, timezone
-from typing import Optional
-
-import anthropic
+from datetime import UTC, datetime
 
 from classifier import _get_client as _get_anthropic_client
 from config import (
@@ -46,7 +42,8 @@ from config import (
     get_slack_bot_token,
 )
 from hospitable_client import HospitableClient
-from knowledge_base_loader import load_kb, format_for_claude as format_kb
+from knowledge_base_loader import format_for_claude as format_kb
+from knowledge_base_loader import load_kb
 from slack_notifier import StayChannelSlackClient
 from stay_channels import StayChannels
 from stay_models import (
@@ -59,7 +56,8 @@ from stay_models import (
 )
 from stay_store import StayStore
 from stay_window import is_in_stay_window
-from thread_logs import ThreadLogs, format_for_claude as format_logs
+from thread_logs import ThreadLogs
+from thread_logs import format_for_claude as format_logs
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +85,9 @@ def handle_channel_message(
     inner_event: dict,
     stay_row: dict,
     *,
-    slack_client: Optional[StayChannelSlackClient] = None,
-    stay_channels: Optional[StayChannels] = None,
-    stay_store: Optional[StayStore] = None,
+    slack_client: StayChannelSlackClient | None = None,
+    stay_channels: StayChannels | None = None,
+    stay_store: StayStore | None = None,
 ) -> None:
     """Dispatch a stay-channel top-level message to the agent.
 
@@ -175,8 +173,8 @@ def handle_mirrored_guest_message(
     stay_row: dict,
     message: dict,
     *,
-    slack_client: Optional[StayChannelSlackClient] = None,
-    stay_store: Optional[StayStore] = None,
+    slack_client: StayChannelSlackClient | None = None,
+    stay_store: StayStore | None = None,
 ) -> None:
     """Auto-draft entry point.
 
@@ -196,9 +194,7 @@ def handle_mirrored_guest_message(
     sender_type = (message or {}).get("sender_type", "").lower()
     if sender_type != "guest":
         return
-    if not is_in_stay_window(
-        stay_row.get("check_in", ""), stay_row.get("check_out", "")
-    ):
+    if not is_in_stay_window(stay_row.get("check_in", ""), stay_row.get("check_out", "")):
         logger.info(
             "stay_agent: skipping auto-draft for %s — outside in-stay window",
             reservation_uuid,
@@ -207,9 +203,7 @@ def handle_mirrored_guest_message(
 
     channel_id = stay_row.get("channel_id", "")
     if not reservation_uuid or not channel_id:
-        logger.warning(
-            "stay_agent: auto-draft skipped — malformed stay_row: %s", stay_row
-        )
+        logger.warning("stay_agent: auto-draft skipped — malformed stay_row: %s", stay_row)
         return
 
     try:
@@ -224,9 +218,7 @@ def handle_mirrored_guest_message(
             auto_trigger=True,
         )
     except Exception as e:
-        logger.exception(
-            "stay_agent: auto-draft turn failed for %s: %s", reservation_uuid, e
-        )
+        logger.exception("stay_agent: auto-draft turn failed for %s: %s", reservation_uuid, e)
 
 
 def _run_agent_turn(
@@ -347,9 +339,9 @@ def _run_agent_turn(
 def handle_send_draft(
     action_payload: dict,
     *,
-    hospitable_client: Optional[HospitableClient] = None,
-    slack_client: Optional[StayChannelSlackClient] = None,
-    stay_store: Optional[StayStore] = None,
+    hospitable_client: HospitableClient | None = None,
+    slack_client: StayChannelSlackClient | None = None,
+    stay_store: StayStore | None = None,
 ) -> None:
     """Send the guest-visible draft via Hospitable. Button handler.
 
@@ -390,10 +382,7 @@ def handle_send_draft(
     entry = StayEntry.new(
         source=SOURCE_SYSTEM,
         author=user,
-        body=(
-            f"Draft sent to guest by {user}" if sent
-            else f"Draft send FAILED ({user}): {err}"
-        ),
+        body=(f"Draft sent to guest by {user}" if sent else f"Draft send FAILED ({user}): {err}"),
         metadata={
             "draft_state": outcome,
             "draft_text": draft_text,
@@ -408,7 +397,8 @@ def handle_send_draft(
 
     # Replace the draft card with a status line.
     status_text = (
-        f":white_check_mark: Sent to guest at {now_iso} by {user}" if sent
+        f":white_check_mark: Sent to guest at {now_iso} by {user}"
+        if sent
         else f":x: Send failed ({err}) — try again or copy/paste manually"
     )
     try:
@@ -420,8 +410,8 @@ def handle_send_draft(
 def handle_discard_draft(
     action_payload: dict,
     *,
-    slack_client: Optional[StayChannelSlackClient] = None,
-    stay_store: Optional[StayStore] = None,
+    slack_client: StayChannelSlackClient | None = None,
+    stay_store: StayStore | None = None,
 ) -> None:
     """Mark the draft as discarded. Button handler."""
     slack_client = slack_client or StayChannelSlackClient()
@@ -573,7 +563,7 @@ def _build_turns(
     entries = (journal.entries if journal else [])[-_RECENT_ENTRIES_WINDOW:]
     turns: list[dict] = []
 
-    def _role_for(source: str) -> Optional[str]:
+    def _role_for(source: str) -> str | None:
         if source in (SOURCE_HOSPITABLE_GUEST, SOURCE_SLACK_USER):
             return "user"
         if source in (SOURCE_HOSPITABLE_HOST, SOURCE_SLACK_AGENT):
@@ -719,7 +709,11 @@ def _post_draft_card(
             "text": {
                 "type": "mrkdwn",
                 "text": f"*Draft reply (not sent):*\n> {draft_text}"
-                + ("\n\n_…draft was long; Send button carries truncated text._" if truncated else ""),
+                + (
+                    "\n\n_…draft was long; Send button carries truncated text._"
+                    if truncated
+                    else ""
+                ),
             },
         },
         {
@@ -795,4 +789,4 @@ def _update_card_as_status(
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

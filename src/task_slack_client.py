@@ -6,10 +6,10 @@ framework, matches the rest of the codebase.
 """
 
 import logging
+
 import requests
 
 from config import get_slack_bot_token
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,7 @@ def post_message(
         payload["blocks"] = blocks
     if thread_ts:
         payload["thread_ts"] = thread_ts
-    response = requests.post(
-        f"{_SLACK_API}/chat.postMessage", headers=_headers(), json=payload
-    )
+    response = requests.post(f"{_SLACK_API}/chat.postMessage", headers=_headers(), json=payload)
     return response.json()
 
 
@@ -58,9 +56,7 @@ def update_message(
     payload: dict = {"channel": channel, "ts": ts, "text": text}
     if blocks:
         payload["blocks"] = blocks
-    response = requests.post(
-        f"{_SLACK_API}/chat.update", headers=_headers(), json=payload
-    )
+    response = requests.post(f"{_SLACK_API}/chat.update", headers=_headers(), json=payload)
     return response.json()
 
 
@@ -80,18 +76,14 @@ def post_ephemeral(
     }
     if blocks:
         payload["blocks"] = blocks
-    response = requests.post(
-        f"{_SLACK_API}/chat.postEphemeral", headers=_headers(), json=payload
-    )
+    response = requests.post(f"{_SLACK_API}/chat.postEphemeral", headers=_headers(), json=payload)
     return response.json()
 
 
 def open_view(*, trigger_id: str, view: dict) -> dict:
     """Open a modal. `trigger_id` comes from the slash command / interaction."""
     payload = {"trigger_id": trigger_id, "view": view}
-    response = requests.post(
-        f"{_SLACK_API}/views.open", headers=_headers(), json=payload
-    )
+    response = requests.post(f"{_SLACK_API}/views.open", headers=_headers(), json=payload)
     return response.json()
 
 

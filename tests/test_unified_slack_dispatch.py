@@ -27,10 +27,9 @@ from urllib.parse import urlencode
 
 from thread_handler import _process_event, _process_interaction, slack_events_handler
 
-
 _EXPENSES_CHANNEL = "C_TEST_EXPENSES"  # matches conftest EXPENSES_CHANNEL_ID
-_TASKS_CHANNEL = "C_TEST_TASKS"        # matches conftest TASKS_CHANNEL_ID
-_STAY_CHANNEL = "C_TEST_CHANNEL"       # matches conftest SLACK_CHANNEL_ID (guest-alerts)
+_TASKS_CHANNEL = "C_TEST_TASKS"  # matches conftest TASKS_CHANNEL_ID
+_STAY_CHANNEL = "C_TEST_CHANNEL"  # matches conftest SLACK_CHANNEL_ID (guest-alerts)
 _SIGNING_SECRET = "test-slack-signing-secret"
 
 
@@ -140,9 +139,10 @@ def test_stay_send_draft_does_not_reach_expense_handler():
     """Guardrail — stay-channel actions must not accidentally dispatch
     to the expense handler."""
     body = _block_actions_payload("stay_send_draft")
-    with patch("expense_handler.process_interaction") as mock_exp, patch(
-        "stay_agent.handle_send_draft"
-    ) as mock_stay:
+    with (
+        patch("expense_handler.process_interaction") as mock_exp,
+        patch("stay_agent.handle_send_draft") as mock_stay,
+    ):
         _process_interaction(body)
     mock_exp.assert_not_called()
     mock_stay.assert_called_once()
@@ -150,9 +150,10 @@ def test_stay_send_draft_does_not_reach_expense_handler():
 
 def test_unknown_action_is_ignored_silently():
     body = _block_actions_payload("totally_fake_action_id")
-    with patch("expense_handler.process_interaction") as mock_exp, patch(
-        "stay_agent.handle_send_draft"
-    ) as mock_stay:
+    with (
+        patch("expense_handler.process_interaction") as mock_exp,
+        patch("stay_agent.handle_send_draft") as mock_stay,
+    ):
         _process_interaction(body)
     mock_exp.assert_not_called()
     mock_stay.assert_not_called()
@@ -163,7 +164,7 @@ def test_unknown_action_is_ignored_silently():
 
 def _signed_event(body: str, content_type: str = "application/json") -> dict:
     ts = str(int(time.time()))
-    basestring = f"v0:{ts}:{body}".encode("utf-8")
+    basestring = f"v0:{ts}:{body}".encode()
     sig = "v0=" + hmac.new(_SIGNING_SECRET.encode("utf-8"), basestring, hashlib.sha256).hexdigest()
     return {
         "body": body,
@@ -265,9 +266,10 @@ def test_every_task_action_dispatches_to_task_handler():
 def test_task_action_does_not_reach_expense_handler():
     """Guardrail — task actions must not leak into the expense pipeline."""
     body = _block_actions_payload("task_mark_done")
-    with patch("expense_handler.process_interaction") as mock_exp, patch(
-        "task_handler.process_interaction"
-    ) as mock_task:
+    with (
+        patch("expense_handler.process_interaction") as mock_exp,
+        patch("task_handler.process_interaction") as mock_task,
+    ):
         _process_interaction(body)
     mock_exp.assert_not_called()
     mock_task.assert_called_once()
@@ -347,9 +349,7 @@ def test_signed_task_view_submission_errors_reach_slack(_secret):
     the signed entry point back to Slack."""
     from task_slack_ui import CREATE_MODAL_CALLBACK_ID
 
-    errors_body = json.dumps(
-        {"response_action": "errors", "errors": {"title_block": "nope"}}
-    )
+    errors_body = json.dumps({"response_action": "errors", "errors": {"title_block": "nope"}})
     errors_response = {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},

@@ -8,13 +8,13 @@ they're available via thread Q&A.
 """
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import responses
-from unittest.mock import patch
 
-from slack_notifier import post_guest_alert, _format_message_time
+from slack_notifier import _format_message_time, post_guest_alert
 
 
 def _request_payload(call) -> dict:
@@ -108,7 +108,7 @@ def test_prefix_shows_urgency_descriptor_property(mock_token):
 def test_prefix_includes_local_message_time_when_provided(mock_token):
     _stub_slack()
     now_local = datetime.now(ZoneInfo("America/Phoenix"))
-    iso = now_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    iso = now_local.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     _call(message_timestamp=iso)
     payload = _request_payload(responses.calls[0])
     prefix = payload["blocks"][0]["elements"][0]["text"]
@@ -132,10 +132,14 @@ def test_prefix_omits_time_clause_when_timestamp_missing(mock_token):
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
 def test_low_urgency_uses_green_dot(mock_token):
     _stub_slack()
-    _call(classification={
-        "category": "PRE_ARRIVAL", "urgency": "LOW",
-        "summary": "Early check-in", "descriptor": "Early Check-in Request",
-    })
+    _call(
+        classification={
+            "category": "PRE_ARRIVAL",
+            "urgency": "LOW",
+            "summary": "Early check-in",
+            "descriptor": "Early Check-in Request",
+        }
+    )
     payload = _request_payload(responses.calls[0])
     prefix = payload["blocks"][0]["elements"][0]["text"]
     assert "🟢" in prefix
@@ -172,10 +176,7 @@ def test_no_big_h1_header_block(mock_token):
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
 def test_situation_renders_haiku_summary_when_provided(mock_token):
     _stub_slack()
-    summary = (
-        "• *Agreed so far:* 4pm check-in confirmed\n"
-        "• *Still open:* AC not cooling"
-    )
+    summary = "• *Agreed so far:* 4pm check-in confirmed\n• *Still open:* AC not cooling"
     _call(conversation_summary=summary)
     payload = _request_payload(responses.calls[0])
     situation = payload["blocks"][1]["text"]["text"]
@@ -253,10 +254,14 @@ def test_footer_shows_reservation_uuid_and_cta(mock_token):
 @patch("slack_notifier.get_slack_bot_token", return_value="xoxb-test-token")
 def test_footer_no_response_needed_hides_cta(mock_token):
     _stub_slack()
-    _call(classification={
-        "category": "POSITIVE", "urgency": "LOW",
-        "summary": "Guest enjoyed stay", "response_needed": False,
-    })
+    _call(
+        classification={
+            "category": "POSITIVE",
+            "urgency": "LOW",
+            "summary": "Guest enjoyed stay",
+            "response_needed": False,
+        }
+    )
     payload = _request_payload(responses.calls[0])
     footer = payload["blocks"][4]["elements"][0]["text"]
     assert "No response needed" in footer
@@ -270,10 +275,14 @@ def test_positive_with_response_needed_still_prompts(mock_token):
     still show the Copy-draft CTA. Previously regressed when the footer
     switched on `category == POSITIVE` directly."""
     _stub_slack()
-    _call(classification={
-        "category": "POSITIVE", "urgency": "LOW",
-        "summary": "Thanks + question", "response_needed": True,
-    })
+    _call(
+        classification={
+            "category": "POSITIVE",
+            "urgency": "LOW",
+            "summary": "Thanks + question",
+            "response_needed": True,
+        }
+    )
     payload = _request_payload(responses.calls[0])
     footer = payload["blocks"][4]["elements"][0]["text"]
     assert "Copy draft" in footer
@@ -331,8 +340,12 @@ def test_conversation_history_is_not_rendered(mock_token):
     on the top message — thread Q&A handles it on demand."""
     _stub_slack()
     history = [
-        {"sender_type": "guest", "body": "Hi, checking in at 4?", "created_at": "2026-04-20T20:00:00Z"},
-        {"sender_type": "host",  "body": "Yes, 4pm works!",        "created_at": "2026-04-20T20:05:00Z"},
+        {
+            "sender_type": "guest",
+            "body": "Hi, checking in at 4?",
+            "created_at": "2026-04-20T20:00:00Z",
+        },
+        {"sender_type": "host", "body": "Yes, 4pm works!", "created_at": "2026-04-20T20:05:00Z"},
     ]
     _call(recent_messages=history)
     payload = _request_payload(responses.calls[0])
@@ -360,7 +373,7 @@ def test_slack_auth_header(mock_token):
 
 
 def test_format_message_time_today():
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     out = _format_message_time(now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"))
     assert out.startswith("today ")
     assert "MST" in out or "MDT" in out
@@ -369,20 +382,36 @@ def test_format_message_time_today():
 def test_format_message_time_yesterday():
     now_phx = datetime.now(ZoneInfo("America/Phoenix"))
     yesterday_phx = now_phx - timedelta(days=1)
-    iso = yesterday_phx.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    iso = yesterday_phx.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     out = _format_message_time(iso)
     assert out.startswith("yesterday ")
 
 
 def test_format_message_time_old_message_uses_month_day():
     # 10 days ago — not today, not yesterday.
-    old = datetime.now(timezone.utc) - timedelta(days=10)
+    old = datetime.now(UTC) - timedelta(days=10)
     iso = old.strftime("%Y-%m-%dT%H:%M:%SZ")
     out = _format_message_time(iso)
     assert not out.startswith("today")
     assert not out.startswith("yesterday")
     # Should include a month abbreviation.
-    assert any(mo in out for mo in ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+    assert any(
+        mo in out
+        for mo in (
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        )
+    )
 
 
 def test_format_message_time_empty_returns_empty():

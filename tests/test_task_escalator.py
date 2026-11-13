@@ -7,7 +7,7 @@ belongs in test_task_models).
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from task_models import Task
@@ -15,7 +15,7 @@ from task_store import TaskStore
 
 
 def _today() -> str:
-    return datetime.now(timezone.utc).date().isoformat()
+    return datetime.now(UTC).date().isoformat()
 
 
 def test_escalator_dms_each_user_with_overdue(tasks_bucket):
@@ -62,9 +62,10 @@ def test_escalator_dms_each_user_with_overdue(tasks_bucket):
     for t in (very_overdue_vj, overdue_maggie, due_today_maggie, future_vj):
         store.put(t)
 
-    with patch("task_escalator.dm_user") as dm_mock, patch(
-        "task_escalator.post_message"
-    ) as post_mock:
+    with (
+        patch("task_escalator.dm_user") as dm_mock,
+        patch("task_escalator.post_message") as post_mock,
+    ):
         dm_mock.return_value = {"ok": True}
         post_mock.return_value = {"ok": True}
         result = lambda_handler({}, None)
@@ -93,9 +94,10 @@ def test_escalator_with_no_overdue_sends_nothing(tasks_bucket):
     )
     store.put(t)
 
-    with patch("task_escalator.dm_user") as dm_mock, patch(
-        "task_escalator.post_message"
-    ) as post_mock:
+    with (
+        patch("task_escalator.dm_user") as dm_mock,
+        patch("task_escalator.post_message") as post_mock,
+    ):
         dm_mock.return_value = {"ok": True}
         post_mock.return_value = {"ok": True}
         result = lambda_handler({}, None)
@@ -120,9 +122,10 @@ def test_escalator_dms_user_with_only_due_today(tasks_bucket):
     )
     store.put(t)
 
-    with patch("task_escalator.dm_user") as dm_mock, patch(
-        "task_escalator.post_message"
-    ) as post_mock:
+    with (
+        patch("task_escalator.dm_user") as dm_mock,
+        patch("task_escalator.post_message") as post_mock,
+    ):
         dm_mock.return_value = {"ok": True}
         post_mock.return_value = {"ok": True}
         result = lambda_handler({}, None)

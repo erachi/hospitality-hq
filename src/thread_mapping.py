@@ -6,11 +6,11 @@ in that thread, the thread handler uses this mapping to know which reservation
 they're talking about — no IDs needed in the message.
 """
 
-import boto3
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+
+import boto3
 
 from config import THREAD_MAPPING_TABLE
 
@@ -58,7 +58,7 @@ class ThreadMapping:
                     "property_name": property_name or "",
                     "guest_name": guest_name or "",
                     "conversation_type": conversation_type,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                     "ttl": int(time.time()) + _TTL_SECONDS,
                 }
             )
@@ -66,7 +66,7 @@ class ThreadMapping:
             # Don't block alert posting on mapping failures — log and move on.
             logger.error(f"Failed to save thread mapping for {thread_ts}: {e}")
 
-    def get_mapping(self, thread_ts: str) -> Optional[dict]:
+    def get_mapping(self, thread_ts: str) -> dict | None:
         """Look up reservation context for a Slack thread. Returns None if unknown."""
         if not thread_ts:
             return None

@@ -18,8 +18,7 @@ each candidate, and returns a stats dict.
 import json
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, date, datetime, timedelta
 
 import requests
 
@@ -126,10 +125,7 @@ def _archive_one(
     try:
         slack_client.post_message(
             channel_id,
-            text=(
-                f":package: Archiving this channel. Full record in S3: "
-                f"`s3://.../{journal_key}`"
-            ),
+            text=(f":package: Archiving this channel. Full record in S3: `s3://.../{journal_key}`"),
         )
     except Exception as e:
         logger.warning("archiver: farewell post failed for %s: %s", res_uuid, e)
@@ -142,8 +138,7 @@ def _archive_one(
     if not archive_resp.get("ok"):
         if err == "already_archived":
             logger.info(
-                "archiver: Slack reports %s already archived — "
-                "flipping row anyway",
+                "archiver: Slack reports %s already archived — flipping row anyway",
                 channel_id,
             )
         else:
@@ -169,4 +164,4 @@ def _slack_archive(channel_id: str) -> dict:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

@@ -12,9 +12,9 @@ import pytest
 
 from expense_handler import _route_interaction, slack_expenses_handler
 from expense_models import (
-    Allocation,
     CONFIDENCE_HIGH,
     CONFIDENCE_LOW,
+    Allocation,
     Expense,
 )
 from expense_slack_ui import (
@@ -28,7 +28,6 @@ from expense_slack_ui import (
     block_id_with_expense,
 )
 from expense_store import ExpenseStore
-
 
 _PALM_ID = "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
 _VILLA_ID = "f8236d9d-988a-4192-9d16-2927b0b9ad8e"
@@ -95,7 +94,9 @@ def _seed_expense(**overrides) -> Expense:
     return expense
 
 
-def _button_payload(*, action_id: str, expense_id: str, response_url: str = "https://hooks.slack.test/1") -> dict:
+def _button_payload(
+    *, action_id: str, expense_id: str, response_url: str = "https://hooks.slack.test/1"
+) -> dict:
     return {
         "type": "block_actions",
         "user": {"id": "UVJ"},
@@ -277,9 +278,7 @@ def test_property_select_same_value_is_noop(mock_post, env):
 
 @patch("expense_handler.post_response_url", return_value={"ok": True})
 def test_category_select_updates_and_clears_low_confidence_flag(mock_post, env):
-    expense = _seed_expense(
-        category_id="supplies", ocr_category_confidence=CONFIDENCE_LOW
-    )
+    expense = _seed_expense(category_id="supplies", ocr_category_confidence=CONFIDENCE_LOW)
     payload = _select_payload(
         action_id=ACTION_CATEGORY_SELECT,
         block_prefix=BLOCK_CATEGORY,
@@ -353,7 +352,7 @@ def test_non_block_actions_type_is_ignored(env):
 
 
 def _sign(body: str, secret: str, ts: str) -> str:
-    base = f"v0:{ts}:{body}".encode("utf-8")
+    base = f"v0:{ts}:{body}".encode()
     return "v0=" + hmac.new(secret.encode("utf-8"), base, hashlib.sha256).hexdigest()
 
 
@@ -361,9 +360,7 @@ def _sign(body: str, secret: str, ts: str) -> str:
 @patch("expense_handler.post_response_url", return_value={"ok": True})
 def test_handler_routes_form_urlencoded_interaction(mock_post, _secret, env):
     expense = _seed_expense()
-    interaction_payload = _button_payload(
-        action_id=ACTION_FILE_IT, expense_id=expense.id
-    )
+    interaction_payload = _button_payload(action_id=ACTION_FILE_IT, expense_id=expense.id)
     body = urlencode({"payload": json.dumps(interaction_payload)})
     ts = str(int(time.time()))
     sig = _sign(body, "shh", ts)

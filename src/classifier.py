@@ -1,8 +1,10 @@
 """Issue classification and response drafting using Claude API."""
 
-import anthropic
 from functools import lru_cache
-from config import get_anthropic_key, CLASSIFY_MODEL, DRAFT_MODEL
+
+import anthropic
+
+from config import CLASSIFY_MODEL, DRAFT_MODEL, get_anthropic_key
 
 
 @lru_cache(maxsize=1)
@@ -210,8 +212,8 @@ def draft_response(
 Guest: {guest_name}
 Check-in: {checkin_date}
 Check-out: {checkout_date}
-Issue type: {classification['category']} ({classification['urgency']} urgency)
-Issue summary: {classification['summary']}"""
+Issue type: {classification["category"]} ({classification["urgency"]} urgency)
+Issue summary: {classification["summary"]}"""
     if is_inquiry:
         header += "\nBooking status: INQUIRY — not booked yet"
         if party_size:
@@ -233,15 +235,13 @@ Issue summary: {classification['summary']}"""
     # Hospitable's structured Knowledge Hub — supplemental
     if knowledge_hub_context.strip():
         sections.append(
-            "═══ Supplemental — Hospitable Knowledge Hub ═══\n"
-            + knowledge_hub_context[:3000]
+            "═══ Supplemental — Hospitable Knowledge Hub ═══\n" + knowledge_hub_context[:3000]
         )
 
     # Property description — lowest priority context
     if property_description.strip():
         sections.append(
-            "═══ Supplemental — Property description ═══\n"
-            + property_description[:2000]
+            "═══ Supplemental — Property description ═══\n" + property_description[:2000]
         )
 
     if conversation_history:

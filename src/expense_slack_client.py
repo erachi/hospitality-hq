@@ -5,10 +5,10 @@ accidentally couple — matches the convention set by task_*.
 """
 
 import logging
+
 import requests
 
 from config import get_slack_bot_token
-
 
 logger = logging.getLogger(__name__)
 

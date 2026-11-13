@@ -11,29 +11,30 @@ CRITICAL: Never sends messages to guests. All responses are drafts
 for VJ or Maggie to review and send manually.
 """
 
+import base64
 import hashlib
 import hmac
 import json
 import logging
-import base64
 
-from config import get_webhook_secret, STAY_CHANNELS_ENABLED
-from hospitable_client import HospitableClient
-from state_tracker import StateTracker, message_dedup_key
 from classifier import classify_message, draft_response, summarize_conversation
-from slack_notifier import post_guest_alert, StayChannelSlackClient
+from config import STAY_CHANNELS_ENABLED, get_webhook_secret
 from handler import (
-    load_property_context,
+    _date_only,
     build_conversation_summary,
     inquiry_guest_name,
     inquiry_messages,
-    _date_only,
+    load_property_context,
 )
+from hospitable_client import HospitableClient
 from knowledge_base_loader import get_property_name
+from slack_notifier import StayChannelSlackClient, post_guest_alert
+from state_tracker import StateTracker, message_dedup_key
 from stay_channels import StayChannels
 from stay_provisioner import mirror_message
+from thread_logs import ThreadLogs
+from thread_logs import format_for_claude as format_thread_logs
 from thread_mapping import ThreadMapping
-from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -69,7 +70,10 @@ def webhook_handler(event, context):
     action = payload.get("action", "")
     if action != "message.created":
         logger.info(f"Ignoring webhook action: {action}")
-        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "not message.created"})}
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"status": "ignored", "reason": "not message.created"}),
+        }
 
     data = payload.get("data", {})
     sender_type = (data.get("sender_type") or "").lower()
@@ -86,7 +90,10 @@ def webhook_handler(event, context):
 
     if not reservation_id:
         logger.warning(f"Missing reservation_id and conversation_id (webhook event {webhook_id})")
-        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "missing ids"})}
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"status": "ignored", "reason": "missing ids"}),
+        }
 
     # Step 4: Branch on sender_type.
     #   - "host": mirror into the stay journal + channel so the ambient
@@ -100,7 +107,10 @@ def webhook_handler(event, context):
 
     if sender_type != "guest":
         logger.info(f"Ignoring webhook with sender_type={sender_type!r}")
-        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": f"sender_type={sender_type}"})}
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"status": "ignored", "reason": f"sender_type={sender_type}"}),
+        }
 
     # Step 5: Dedup — check if already processed.
     # The webhook event id (`payload["id"]`) is the DELIVERY id, not a message
@@ -121,7 +131,12 @@ def webhook_handler(event, context):
     # Step 6: Enrich — fetch reservation details
     try:
         result = process_webhook_message(
-            data, payload, tracker, reservation_id, webhook_id, dedup_key,
+            data,
+            payload,
+            tracker,
+            reservation_id,
+            webhook_id,
+            dedup_key,
             is_inquiry=is_inquiry,
         )
         return result
@@ -131,14 +146,16 @@ def webhook_handler(event, context):
         # pick up. (Previously marked as "ERROR" here, which permanently hid
         # transient failures from the poller.)
         logger.error(
-            f"Error processing webhook event {webhook_id} "
-            f"(reservation {reservation_id}): {e}"
+            f"Error processing webhook event {webhook_id} (reservation {reservation_id}): {e}"
         )
         return {"statusCode": 200, "body": json.dumps({"status": "error", "error": str(e)})}
 
 
 def _handle_host_webhook_message(
-    data: dict, reservation_id: str, webhook_id: str, is_inquiry: bool,
+    data: dict,
+    reservation_id: str,
+    webhook_id: str,
+    is_inquiry: bool,
 ) -> dict:
     """Mirror a host reply into the stay journal + channel.
 
@@ -146,7 +163,10 @@ def _handle_host_webhook_message(
     Inquiries have no stay channel so we skip them outright.
     """
     if not STAY_CHANNELS_ENABLED or is_inquiry:
-        return {"statusCode": 200, "body": json.dumps({"status": "ignored", "reason": "host, no stay channel"})}
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"status": "ignored", "reason": "host, no stay channel"}),
+        }
 
     try:
         mirror_message(
@@ -163,8 +183,12 @@ def _handle_host_webhook_message(
 
 
 def process_webhook_message(
-    data: dict, payload: dict, tracker: StateTracker,
-    reservation_id: str, webhook_id: str, dedup_key: str,
+    data: dict,
+    payload: dict,
+    tracker: StateTracker,
+    reservation_id: str,
+    webhook_id: str,
+    dedup_key: str,
     is_inquiry: bool = False,
 ) -> dict:
     """Process a single webhook guest message through the classify/draft/notify pipeline.
@@ -213,9 +237,7 @@ def process_webhook_message(
     # Airbnb public name.
     property_id = first_property.get("id", "")
     property_name = (
-        get_property_name(property_id)
-        or first_property.get("name")
-        or "Unknown Property"
+        get_property_name(property_id) or first_property.get("name") or "Unknown Property"
     )
 
     # Load property context
@@ -227,10 +249,11 @@ def process_webhook_message(
     # Get the message text from the webhook payload
     msg_text = data.get("body") or ""
     if not msg_text.strip():
-        tracker.mark_message_processed(
-            reservation_id, dedup_key, "EMPTY", "LOW", property_name
-        )
-        return {"statusCode": 200, "body": json.dumps({"status": "skipped", "reason": "empty message"})}
+        tracker.mark_message_processed(reservation_id, dedup_key, "EMPTY", "LOW", property_name)
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"status": "skipped", "reason": "empty message"}),
+        }
 
     # Classify
     classification = classify_message(msg_text, property_name)
@@ -316,9 +339,7 @@ def process_webhook_message(
                 guest_name=guest_name,
             )
         except Exception as e:
-            logger.warning(
-                f"Mirror failed for webhook event {webhook_id}: {e}"
-            )
+            logger.warning(f"Mirror failed for webhook event {webhook_id}: {e}")
 
     if slack_result.get("ok"):
         logger.info(f"Posted Slack alert for webhook event {webhook_id}")
@@ -343,8 +364,10 @@ def process_webhook_message(
     # Mark as processed using the shared dedup key so the hourly poller
     # won't re-alert the same message later.
     tracker.mark_message_processed(
-        reservation_id, dedup_key,
-        classification["category"], classification["urgency"],
+        reservation_id,
+        dedup_key,
+        classification["category"],
+        classification["urgency"],
         property_name,
     )
 

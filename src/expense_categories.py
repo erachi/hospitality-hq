@@ -10,8 +10,6 @@ import json
 import logging
 import os
 from functools import lru_cache
-from typing import Optional
-
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +48,7 @@ def load_merchant_patterns() -> list[dict]:
     return _load_seed("expense_merchant_patterns.json")
 
 
-def get_category(category_id: str) -> Optional[dict]:
+def get_category(category_id: str) -> dict | None:
     for c in load_categories():
         if c["id"] == category_id:
             return c
@@ -61,7 +59,7 @@ def valid_category_ids() -> set[str]:
     return {c["id"] for c in load_categories()}
 
 
-def suggest_from_merchant(merchant_name: str) -> Optional[str]:
+def suggest_from_merchant(merchant_name: str) -> str | None:
     """Return the best category_id for a merchant name, or None.
 
     Case-insensitive substring match; first matching rule wins.
@@ -78,7 +76,7 @@ def suggest_from_merchant(merchant_name: str) -> Optional[str]:
 def _load_seed(filename: str) -> list[dict]:
     path = os.path.join(_default_seed_dir(), filename)
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except FileNotFoundError:
         logger.warning(f"Seed file not found: {path}")

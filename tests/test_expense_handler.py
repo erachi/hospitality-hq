@@ -4,7 +4,8 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import MagicMock, patch
+from datetime import UTC
+from unittest.mock import patch
 
 import boto3
 import pytest
@@ -17,8 +18,7 @@ from expense_handler import (
     ingest_file,
     slack_expenses_handler,
 )
-from expense_models import CONFIDENCE_HIGH, CONFIDENCE_LOW
-
+from expense_models import CONFIDENCE_LOW
 
 _EXPENSES_CHANNEL = "C_TEST_EXPENSES"
 _EVENTS_PROPERTIES = [
@@ -61,7 +61,7 @@ def expenses_env(expenses_bucket):
 
 
 def _sign(body: str, secret: str, timestamp: str) -> str:
-    base = f"v0:{timestamp}:{body}".encode("utf-8")
+    base = f"v0:{timestamp}:{body}".encode()
     return "v0=" + hmac.new(secret.encode("utf-8"), base, hashlib.sha256).hexdigest()
 
 
@@ -91,7 +91,9 @@ def test_verify_signature_rejects_bad_signature(_secret):
 # ─── Handler routing ─────────────────────────────────────────────────────
 
 
-def _make_event(body: str, secret: str = "shh", ts: str | None = None, retry: str | None = None) -> dict:
+def _make_event(
+    body: str, secret: str = "shh", ts: str | None = None, retry: str | None = None
+) -> dict:
     ts = ts or str(int(time.time()))
     headers = {
         "x-slack-request-timestamp": ts,
@@ -114,7 +116,13 @@ def test_handler_returns_challenge_for_url_verification(_secret):
 @patch("expense_handler.get_slack_signing_secret", return_value="shh")
 def test_handler_rejects_invalid_signature(_secret):
     result = slack_expenses_handler(
-        {"body": "{}", "headers": {"x-slack-signature": "v0=bad", "x-slack-request-timestamp": str(int(time.time()))}},
+        {
+            "body": "{}",
+            "headers": {
+                "x-slack-signature": "v0=bad",
+                "x-slack-request-timestamp": str(int(time.time())),
+            },
+        },
         None,
     )
     assert result["statusCode"] == 401
@@ -149,7 +157,9 @@ def test_handler_ignores_non_json_body(_secret):
 # ─── Event routing ───────────────────────────────────────────────────────
 
 
-def _file_share_envelope(*, channel=_EXPENSES_CHANNEL, text="", user="UVJ", ts="1745000000.000100", files=None) -> dict:
+def _file_share_envelope(
+    *, channel=_EXPENSES_CHANNEL, text="", user="UVJ", ts="1745000000.000100", files=None
+) -> dict:
     return {
         "type": "event_callback",
         "event": {
@@ -373,13 +383,9 @@ def test_ingest_posts_error_card_on_ocr_failure(
 
 def test_match_property_exact_slug(expenses_env):
     assert (
-        _match_property_from_caption("palm — $30 bulbs")
-        == "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
+        _match_property_from_caption("palm — $30 bulbs") == "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
     )
-    assert (
-        _match_property_from_caption("for villa")
-        == "f8236d9d-988a-4192-9d16-2927b0b9ad8e"
-    )
+    assert _match_property_from_caption("for villa") == "f8236d9d-988a-4192-9d16-2927b0b9ad8e"
 
 
 def test_match_property_name_substring(expenses_env):
@@ -399,12 +405,12 @@ def test_match_property_none_when_no_match(expenses_env):
 
 
 def test_retention_until_iso_is_in_the_future():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     value = _retention_until_iso()
     # Parse back — should be parseable and clearly in the future (>1 year).
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    delta = parsed - datetime.now(timezone.utc)
+    delta = parsed - datetime.now(UTC)
     # Default retention is 2555 days (7 years) — allow a wide floor here.
     assert delta.days > 365
     assert value.endswith("Z")

@@ -10,13 +10,12 @@ send manually.
 """
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 
-from config import get_slack_bot_token, SLACK_CHANNEL_ID
-
+from config import SLACK_CHANNEL_ID, get_slack_bot_token
 
 # `[HOST: ...]` notes are host-only annotations the drafter uses to flag
 # uncertainty. They must not reach guests, so we split them out of the draft
@@ -128,7 +127,7 @@ def _format_message_time(iso_ts: str, tz_name: str = _DEFAULT_TZ) -> str:
             s = s[:-1] + "+00:00"
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         tz = _get_tz(tz_name)
         local = dt.astimezone(tz)
     except (ValueError, TypeError):
@@ -196,12 +195,12 @@ def _build_blocks(
     # ---- 4. Draft response (strip [HOST:...] notes so they can't leak) ----
     cleaned_draft, host_notes = _split_host_notes(draft_response or "")
     draft = cleaned_draft.strip()
-    draft_block_text = _truncate(f"*Draft reply:*\n> {draft}") if draft else "*Draft reply:*\n> _(no draft)_"
+    draft_block_text = (
+        _truncate(f"*Draft reply:*\n> {draft}") if draft else "*Draft reply:*\n> _(no draft)_"
+    )
     if host_notes:
         notes_bullets = "\n".join(f"• {n}" for n in host_notes)
-        host_notes_block_text = _truncate(
-            f"*Host notes (not sent to guest):*\n{notes_bullets}"
-        )
+        host_notes_block_text = _truncate(f"*Host notes (not sent to guest):*\n{notes_bullets}")
     else:
         host_notes_block_text = ""
 
@@ -289,7 +288,9 @@ def post_guest_alert(
     urgency = classification.get("urgency", "MEDIUM")
     category = classification.get("category", "GENERAL")
     summary = classification.get("summary", "")
-    descriptor = (classification.get("descriptor") or "").strip() or CATEGORY_LABEL.get(category, category)
+    descriptor = (classification.get("descriptor") or "").strip() or CATEGORY_LABEL.get(
+        category, category
+    )
 
     urgency_icon = URGENCY_EMOJI.get(urgency, "🟡")
 

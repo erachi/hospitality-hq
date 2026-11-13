@@ -8,10 +8,8 @@ Fields align with the design doc — see TASKS_DESIGN.md if you ever write it.
 """
 
 import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from typing import Optional
-
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 
 # Status values. A task's lifecycle walks through these left-to-right,
 # with "blocked" as an optional detour and "cancelled" as an exit.
@@ -74,7 +72,7 @@ class Comment:
     user_id: str
     body: str
     created_at: str
-    slack_message_ts: Optional[str] = None
+    slack_message_ts: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -90,7 +88,7 @@ class Comment:
         )
 
     @classmethod
-    def new(cls, user_id: str, body: str, slack_message_ts: Optional[str] = None) -> "Comment":
+    def new(cls, user_id: str, body: str, slack_message_ts: str | None = None) -> "Comment":
         return cls(
             id=str(uuid.uuid4()),
             user_id=user_id,
@@ -119,10 +117,10 @@ class Task:
     created_by_id: str
     created_at: str
     updated_at: str
-    due_date: Optional[str] = None  # ISO date, YYYY-MM-DD
-    completed_at: Optional[str] = None
-    slack_channel_id: Optional[str] = None
-    slack_message_ts: Optional[str] = None
+    due_date: str | None = None  # ISO date, YYYY-MM-DD
+    completed_at: str | None = None
+    slack_channel_id: str | None = None
+    slack_message_ts: str | None = None
     tags: list[str] = field(default_factory=list)
     comments: list[Comment] = field(default_factory=list)
 
@@ -163,8 +161,8 @@ class Task:
         assignee_id: str,
         created_by_id: str,
         priority: str = PRIORITY_NORMAL,
-        due_date: Optional[str] = None,
-        tags: Optional[list[str]] = None,
+        due_date: str | None = None,
+        tags: list[str] | None = None,
     ) -> "Task":
         now = _now_iso()
         return cls(
@@ -189,7 +187,7 @@ class Task:
     def is_open(self) -> bool:
         return self.status in OPEN_STATUSES
 
-    def is_overdue(self, today: Optional[str] = None) -> bool:
+    def is_overdue(self, today: str | None = None) -> bool:
         """True if open and the due_date has passed.
 
         today is an ISO date (YYYY-MM-DD); defaults to today in UTC. The cron
@@ -198,10 +196,10 @@ class Task:
         """
         if not self.is_open() or not self.due_date:
             return False
-        today = today or datetime.now(timezone.utc).date().isoformat()
+        today = today or datetime.now(UTC).date().isoformat()
         return self.due_date < today
 
 
 def _now_iso() -> str:
     """Current UTC time as an ISO-8601 string with trailing Z."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

@@ -1,12 +1,11 @@
 """Tests for the per-property knowledge base loader."""
 
 from knowledge_base_loader import (
-    load_kb,
-    get_property_name,
-    format_for_claude,
     UUID_TO_FILENAME,
+    format_for_claude,
+    get_property_name,
+    load_kb,
 )
-
 
 VILLA_UUID = "f8236d9d-988a-4192-9d16-2927b0b9ad8e"
 PALM_UUID = "3278e9cb-9239-487f-aa51-cbfbaf4b7570"

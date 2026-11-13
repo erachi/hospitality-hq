@@ -6,11 +6,8 @@ Property and category dropdowns are populated from src/seed/ (categories)
 and S3 config/properties.json (properties).
 """
 
-from typing import Optional
-
 from expense_categories import load_categories
 from expense_models import CONFIDENCE_LOW, Expense
-
 
 # Block action ids and block ids. Interactions in PR 3 dispatch on these.
 ACTION_FILE_IT = "expense_file_it"
@@ -39,6 +36,7 @@ def expense_id_from_block_id(block_id: str) -> str:
     if _ID_SEP not in (block_id or ""):
         return ""
     return block_id.split(_ID_SEP, 1)[1]
+
 
 _LOW_CONFIDENCE_DOT = "🔴 "
 
@@ -127,9 +125,7 @@ def build_extracted_card(
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": (
-                        f"`{expense.id}` · submitted by <@{expense.submitter_slack_id}>"
-                    ),
+                    "text": (f"`{expense.id}` · submitted by <@{expense.submitter_slack_id}>"),
                 }
             ],
         }
@@ -138,8 +134,7 @@ def build_extracted_card(
     blocks.append(_action_buttons_block(expense_id=expense.id))
 
     fallback = (
-        f"🧾 {expense.merchant_name} · {expense.transaction_date} · ${expense.total} "
-        f"({expense.id})"
+        f"🧾 {expense.merchant_name} · {expense.transaction_date} · ${expense.total} ({expense.id})"
     )
     return blocks, fallback
 
@@ -147,8 +142,8 @@ def build_extracted_card(
 def build_filed_card(
     *,
     expense: Expense,
-    property_display_name: Optional[str],
-    category_display_name: Optional[str],
+    property_display_name: str | None,
+    category_display_name: str | None,
 ) -> tuple[list[dict], str]:
     """Replace the confirmation card once the submitter clicks File it.
 
@@ -232,7 +227,7 @@ def build_error_card(*, reason: str) -> tuple[list[dict], str]:
 
 
 def _property_dropdown_block(
-    *, properties: list[dict], selected_id: Optional[str], expense_id: str
+    *, properties: list[dict], selected_id: str | None, expense_id: str
 ) -> dict:
     options = [
         {
@@ -251,7 +246,11 @@ def _property_dropdown_block(
         match = next((p for p in properties if p["id"] == selected_id), None)
         if match:
             element["initial_option"] = {
-                "text": {"type": "plain_text", "text": match.get("name", match["id"]), "emoji": True},
+                "text": {
+                    "type": "plain_text",
+                    "text": match.get("name", match["id"]),
+                    "emoji": True,
+                },
                 "value": match["id"],
             }
 
@@ -264,7 +263,7 @@ def _property_dropdown_block(
 
 
 def _category_dropdown_block(
-    *, selected_id: Optional[str], low_confidence: bool, expense_id: str
+    *, selected_id: str | None, low_confidence: bool, expense_id: str
 ) -> dict:
     categories = load_categories()
     options = [

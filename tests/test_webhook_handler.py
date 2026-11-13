@@ -3,11 +3,11 @@
 import hashlib
 import hmac
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from moto import mock_aws
 
-from webhook_handler import webhook_handler, verify_signature
+from webhook_handler import verify_signature, webhook_handler
 
 WEBHOOK_SIGNING_SECRET = "test-webhook-secret-key"
 
@@ -61,7 +61,12 @@ def _make_unsigned_webhook_event(payload_dict: dict) -> dict:
 @patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_processes_guest_message(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_secret,
     dynamodb_table,
 ):
     """Valid webhook with guest message should classify, draft, and post to Slack."""
@@ -124,7 +129,12 @@ def test_webhook_processes_guest_message(
 @patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_accepts_without_secret(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_secret,
     dynamodb_table,
 ):
     """When no signing secret is configured, webhooks should be accepted without signature."""
@@ -212,8 +222,13 @@ def test_webhook_ignores_truly_non_guest_sender(mock_secret, dynamodb_table):
 @patch("webhook_handler.draft_response")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_host_message_mirrors_only(
-    mock_slack, mock_draft, mock_classify, mock_mirror, mock_stay_slack,
-    mock_secret, dynamodb_table,
+    mock_slack,
+    mock_draft,
+    mock_classify,
+    mock_mirror,
+    mock_stay_slack,
+    mock_secret,
+    dynamodb_table,
 ):
     """A host message (Maggie/VJ reply typed into the Hospitable PMS) must
     mirror into the stay journal + channel but never reach the alert path.
@@ -263,7 +278,10 @@ def test_webhook_host_message_mirrors_only(
 @patch("webhook_handler.StayChannelSlackClient")
 @patch("webhook_handler.mirror_message")
 def test_webhook_host_message_on_inquiry_is_ignored(
-    mock_mirror, mock_stay_slack, mock_secret, dynamodb_table,
+    mock_mirror,
+    mock_stay_slack,
+    mock_secret,
+    dynamodb_table,
 ):
     """Inquiries never have a stay channel, so a host webhook on an inquiry
     (reservation_id missing, conversation_id present) is ignored, not mirrored."""
@@ -294,7 +312,10 @@ def test_webhook_host_message_on_inquiry_is_ignored(
 @patch("webhook_handler.StayChannelSlackClient")
 @patch("webhook_handler.mirror_message", side_effect=RuntimeError("s3 down"))
 def test_webhook_host_message_mirror_failure_returns_200(
-    mock_mirror, mock_stay_slack, mock_secret, dynamodb_table,
+    mock_mirror,
+    mock_stay_slack,
+    mock_secret,
+    dynamodb_table,
 ):
     """A mirror failure must not surface as a 5xx — Hospitable would retry
     the webhook and spam the journal. Return 200 with an error body; the
@@ -346,7 +367,12 @@ def test_webhook_ignores_non_message_event(mock_secret, dynamodb_table):
 @patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_deduplicates(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_secret,
     dynamodb_table,
 ):
     """Same webhook delivered twice should only process once."""
@@ -398,7 +424,12 @@ def test_webhook_deduplicates(
 @patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert")
 def test_webhook_error_does_not_mark_processed(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_secret,
     dynamodb_table,
 ):
     """A transient error inside the pipeline must NOT mark the message as
@@ -425,9 +456,10 @@ def test_webhook_error_does_not_mark_processed(
         SAMPLE_WEBHOOK_PAYLOAD["data"]["reservation_id"],
         SAMPLE_WEBHOOK_PAYLOAD["data"],
     )
-    assert tracker.is_message_processed(
-        SAMPLE_WEBHOOK_PAYLOAD["data"]["reservation_id"], dedup_key
-    ) is False
+    assert (
+        tracker.is_message_processed(SAMPLE_WEBHOOK_PAYLOAD["data"]["reservation_id"], dedup_key)
+        is False
+    )
 
 
 @mock_aws

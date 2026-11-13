@@ -34,9 +34,7 @@ def test_put_and_get_roundtrip(expenses_bucket):
         id="EXP-2026-0007",
         category_id="repairs",
         property_id="3278e9cb-9239-487f-aa51-cbfbaf4b7570",
-        allocations=[
-            Allocation.single("3278e9cb-9239-487f-aa51-cbfbaf4b7570", Decimal("311.97"))
-        ],
+        allocations=[Allocation.single("3278e9cb-9239-487f-aa51-cbfbaf4b7570", Decimal("311.97"))],
     )
 
     store.put(expense)
@@ -118,9 +116,7 @@ def test_put_receipt_image_without_retention(expenses_bucket):
     )
     assert key == "receipts/2026/EXP-2026-0001.jpg"
 
-    obj = expenses_bucket.get_object(
-        Bucket="hospitality-hq-expenses-test", Key=key
-    )
+    obj = expenses_bucket.get_object(Bucket="hospitality-hq-expenses-test", Key=key)
     assert obj["Body"].read() == b"fake image bytes"
     assert obj["ContentType"] == "image/jpeg"
 
@@ -144,9 +140,7 @@ def test_put_thumbnail(expenses_bucket):
     key = store.put_thumbnail("2026", "EXP-2026-0001", b"thumb")
     assert key == "thumbs/2026/EXP-2026-0001.jpg"
 
-    obj = expenses_bucket.get_object(
-        Bucket="hospitality-hq-expenses-test", Key=key
-    )
+    obj = expenses_bucket.get_object(Bucket="hospitality-hq-expenses-test", Key=key)
     assert obj["Body"].read() == b"thumb"
 
 

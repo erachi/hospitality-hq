@@ -6,11 +6,11 @@ keyed by reservation. These logs feed into two places:
   - Future Q&A replies (so "any issues on this res?" returns real answers)
 """
 
-import boto3
 import logging
 import time
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
+
+import boto3
 
 from config import THREAD_LOGS_TABLE
 
@@ -38,7 +38,7 @@ class ThreadLogs:
         text: str,
         author: str,
         thread_ts: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Append a note/issue/resolution. Returns the generated log_id or None on failure."""
         if log_type not in VALID_TYPES:
             logger.warning(f"Ignoring invalid log type: {log_type}")
@@ -47,7 +47,7 @@ class ThreadLogs:
             logger.warning("Missing reservation_uuid, skipping log")
             return None
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # log_id is ISO timestamp + millisecond suffix for uniqueness + sortability
         log_id = f"{now.isoformat()}#{int(time.time() * 1000) % 1000:03d}"
 
@@ -68,7 +68,7 @@ class ThreadLogs:
             logger.error(f"Failed to append log for {reservation_uuid}: {e}")
             return None
 
-    def get_logs(self, reservation_uuid: str) -> List[dict]:
+    def get_logs(self, reservation_uuid: str) -> list[dict]:
         """Return all logs for a reservation, oldest first."""
         if not reservation_uuid:
             return []
@@ -94,7 +94,7 @@ _TYPE_ICONS = {
 }
 
 
-def format_for_claude(logs: List[dict]) -> str:
+def format_for_claude(logs: list[dict]) -> str:
     """Render a list of logs as a text block for inclusion in a Claude prompt.
 
     Returns empty string when there are no logs, so the caller can

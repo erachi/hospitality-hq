@@ -12,14 +12,12 @@ the day before check-in so early-arrival logistics (ETA, bag drop,
 code requests) still get drafts.
 """
 
-from datetime import date, datetime, timedelta, timezone
-from typing import Optional
-
+from datetime import UTC, date, datetime, timedelta
 
 _EARLY_ARRIVAL_DAYS = 1
 
 
-def _parse(d: str) -> Optional[date]:
+def _parse(d: str) -> date | None:
     """Parse a `YYYY-MM-DD` or ISO-8601 string into a `date`, or None."""
     if not d:
         return None
@@ -36,7 +34,7 @@ def _parse(d: str) -> Optional[date]:
 def is_in_stay_window(
     check_in: str,
     check_out: str,
-    today: Optional[date] = None,
+    today: date | None = None,
 ) -> bool:
     """Return True iff today is between (check_in - 1d) and check_out.
 
@@ -50,5 +48,5 @@ def is_in_stay_window(
     co = _parse(check_out)
     if ci is None or co is None:
         return False
-    today = today or datetime.now(timezone.utc).date()
+    today = today or datetime.now(UTC).date()
     return (ci - timedelta(days=_EARLY_ARRIVAL_DAYS)) <= today <= co

@@ -3,19 +3,16 @@ valid shapes, not pixel-perfect text.
 """
 
 from task_models import (
-    Task,
-    STATUS_DONE,
-    STATUS_BLOCKED,
-    PRIORITY_HIGH,
     PROPERTY_BUSINESS,
+    STATUS_DONE,
+    Task,
 )
 from task_slack_ui import (
+    CREATE_MODAL_CALLBACK_ID,
     build_create_modal,
     build_task_card_blocks,
     build_task_list_blocks,
-    CREATE_MODAL_CALLBACK_ID,
 )
-
 
 PROPERTIES = [
     {"id": "prop-palm", "name": "The Palm Club", "slug": "palm"},

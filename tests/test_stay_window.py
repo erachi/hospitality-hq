@@ -1,6 +1,6 @@
 """Tests for the in-stay window predicate."""
 
-from datetime import date
+from datetime import UTC, date
 
 from stay_window import is_in_stay_window
 
@@ -43,21 +43,19 @@ def test_in_stay_window_malformed_strings_false():
 
 def test_in_stay_window_tolerates_iso_8601_with_time():
     """Reservation snapshots occasionally carry full ISO timestamps."""
-    assert is_in_stay_window(
-        "2026-11-20T00:00:00Z", "2026-11-25T12:00:00Z", date(2026, 11, 22)
-    )
+    assert is_in_stay_window("2026-11-20T00:00:00Z", "2026-11-25T12:00:00Z", date(2026, 11, 22))
 
 
 def test_in_stay_window_default_today(monkeypatch):
     """Default `today` is derived from the UTC clock."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     import stay_window as sw
 
     class _FakeDatetime:
         @classmethod
         def now(cls, tz=None):
-            return datetime(2026, 11, 22, 10, 0, 0, tzinfo=tz or timezone.utc)
+            return datetime(2026, 11, 22, 10, 0, 0, tzinfo=tz or UTC)
 
     monkeypatch.setattr(sw, "datetime", _FakeDatetime)
     assert sw.is_in_stay_window("2026-11-20", "2026-11-25")

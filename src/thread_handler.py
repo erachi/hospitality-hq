@@ -23,27 +23,30 @@ import time
 from urllib.parse import parse_qs
 
 from config import (
-    get_slack_signing_secret,
     EXPENSES_CHANNEL_ID,
     SLACK_CHANNEL_ID,
     STAY_CHANNELS_ENABLED,
     TASKS_CHANNEL_ID,
+    get_slack_signing_secret,
 )
+from handler import build_conversation_summary, inquiry_messages, load_property_context
+from hospitable_client import HospitableClient
+from knowledge_base_loader import format_for_claude as format_kb
+from knowledge_base_loader import load_kb
 from slack_notifier import post_thread_reply
+from slack_qa import answer as qa_answer
 from stay_channels import StayChannels
 from stay_models import STATUS_ACTIVE
-from thread_mapping import ThreadMapping
 from thread_logs import (
-    ThreadLogs,
-    TYPE_NOTE,
     TYPE_ISSUE,
+    TYPE_NOTE,
     TYPE_RESOLUTION,
+    ThreadLogs,
+)
+from thread_logs import (
     format_for_claude as format_logs,
 )
-from knowledge_base_loader import load_kb, format_for_claude as format_kb
-from hospitable_client import HospitableClient
-from slack_qa import answer as qa_answer
-from handler import build_conversation_summary, inquiry_messages, load_property_context
+from thread_mapping import ThreadMapping
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -247,9 +250,7 @@ def _process_stay_channel_event(inner: dict, stay_row: dict) -> None:
     thread_ts = inner.get("thread_ts")
     ts = inner.get("ts")
     if thread_ts and thread_ts != ts:
-        logger.info(
-            f"Ignoring thread reply in stay channel {inner.get('channel')}"
-        )
+        logger.info(f"Ignoring thread reply in stay channel {inner.get('channel')}")
         return
     text = (inner.get("text") or "").strip()
     if not text:
@@ -311,10 +312,12 @@ def _process_interaction(raw_body: str) -> dict | None:
     # Stay-channel draft buttons.
     if action_id == "stay_send_draft":
         from stay_agent import handle_send_draft
+
         handle_send_draft(payload)
         return None
     if action_id == "stay_discard_draft":
         from stay_agent import handle_discard_draft
+
         handle_discard_draft(payload)
         return None
 
@@ -355,7 +358,7 @@ def _classify_intent(text: str) -> tuple[str, str]:
     # We accept any string that starts with "resolved" as a word.
     if lowered == "resolved" or lowered.startswith("resolved ") or lowered.startswith("resolved\t"):
         # Trailing text (e.g. "— called the guest") becomes the log text
-        tail = text[len("resolved"):].strip().lstrip("—-: ").strip()
+        tail = text[len("resolved") :].strip().lstrip("—-: ").strip()
         return TYPE_RESOLUTION, tail
 
     return "question", text
@@ -401,7 +404,7 @@ def _format_confirmation(log_type: str, text: str, reservation_uuid: str) -> str
     if log_type == TYPE_RESOLUTION:
         msg = "✅ Marked as resolved."
         if text:
-            msg += f"\nNote saved: \"{text}\""
+            msg += f'\nNote saved: "{text}"'
         return msg
     return "_Logged._"
 
@@ -505,7 +508,7 @@ def _verify_signature(raw_body: str, timestamp: str, signature: str) -> bool:
         logger.warning(f"Slack timestamp skew too large: {timestamp}")
         return False
 
-    basestring = f"v0:{timestamp}:{raw_body}".encode("utf-8")
+    basestring = f"v0:{timestamp}:{raw_body}".encode()
     computed = "v0=" + hmac.new(secret.encode("utf-8"), basestring, hashlib.sha256).hexdigest()
     return hmac.compare_digest(computed, signature)
 

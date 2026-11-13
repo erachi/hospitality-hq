@@ -20,14 +20,12 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
 from config import TASKS_BUCKET
-from task_models import Task, OPEN_STATUSES
-
+from task_models import OPEN_STATUSES, Task
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +51,12 @@ class TaskStore:
     users who are unlikely to race.
     """
 
-    def __init__(self, bucket: Optional[str] = None):
+    def __init__(self, bucket: str | None = None):
         self.bucket = bucket or TASKS_BUCKET
 
     # ─── Task CRUD ───────────────────────────────────────────────────────
 
-    def get(self, task_id: str) -> Optional[Task]:
+    def get(self, task_id: str) -> Task | None:
         """Fetch one task by id. Returns None if missing."""
         if not task_id:
             return None
@@ -109,7 +107,7 @@ class TaskStore:
         tasks = self.list_all(include_closed=include_closed)
         return [t for t in tasks if t.property_id == property_id]
 
-    def list_overdue(self, today: Optional[str] = None) -> list[Task]:
+    def list_overdue(self, today: str | None = None) -> list[Task]:
         """All open tasks with a due_date earlier than today."""
         return [t for t in self.list_all(include_closed=False) if t.is_overdue(today)]
 
@@ -129,7 +127,7 @@ class TaskStore:
             ContentType="application/json",
         )
 
-    def get_task_by_thread(self, thread_ts: str) -> Optional[Task]:
+    def get_task_by_thread(self, thread_ts: str) -> Task | None:
         """Resolve a Slack thread_ts to the full Task (two GETs)."""
         if not thread_ts:
             return None
@@ -154,19 +152,19 @@ class TaskStore:
         """Load the static users list. Cached per Lambda cold start."""
         return self._load_config("users.json")
 
-    def get_property(self, property_id: str) -> Optional[dict]:
+    def get_property(self, property_id: str) -> dict | None:
         for p in self.load_properties():
             if p.get("id") == property_id:
                 return p
         return None
 
-    def get_user(self, user_id: str) -> Optional[dict]:
+    def get_user(self, user_id: str) -> dict | None:
         for u in self.load_users():
             if u.get("id") == user_id:
                 return u
         return None
 
-    def get_user_by_slack_id(self, slack_user_id: str) -> Optional[dict]:
+    def get_user_by_slack_id(self, slack_user_id: str) -> dict | None:
         for u in self.load_users():
             if u.get("slack_user_id") == slack_user_id:
                 return u
@@ -200,7 +198,7 @@ class TaskStore:
     def _get_many(self, keys: list[str]) -> list[Task]:
         """Parallel fan-out GET for a list of task keys."""
 
-        def _fetch(key: str) -> Optional[Task]:
+        def _fetch(key: str) -> Task | None:
             try:
                 obj = _s3().get_object(Bucket=self.bucket, Key=key)
                 return Task.from_dict(json.loads(obj["Body"].read()))

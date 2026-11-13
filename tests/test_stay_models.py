@@ -1,14 +1,14 @@
 """Tests for stay_models."""
 
 from stay_models import (
-    StayEntry,
-    StayJournal,
+    SOURCE_HOSPITABLE_GUEST,
+    SOURCE_SLACK_AGENT,
+    SOURCE_SLACK_USER,
+    SOURCE_SYSTEM,
     STATUS_ACTIVE,
     STATUS_ARCHIVED,
-    SOURCE_HOSPITABLE_GUEST,
-    SOURCE_SLACK_USER,
-    SOURCE_SLACK_AGENT,
-    SOURCE_SYSTEM,
+    StayEntry,
+    StayJournal,
 )
 
 
@@ -79,9 +79,7 @@ def test_journal_append_touches_updated_at_and_grows_entries():
     assert len(j.entries) == 1
     assert j.updated_at >= original
 
-    j.append(
-        StayEntry.new(source=SOURCE_SLACK_USER, author="UVJ", body="hello")
-    )
+    j.append(StayEntry.new(source=SOURCE_SLACK_USER, author="UVJ", body="hello"))
     assert len(j.entries) == 2
 
 

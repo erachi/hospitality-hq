@@ -4,26 +4,27 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from moto import mock_aws
 
 from thread_handler import (
-    slack_events_handler,
     _classify_intent,
     _verify_signature,
+    slack_events_handler,
 )
-
 
 TEST_SIGNING_SECRET = "test-slack-signing-secret"
 TEST_CHANNEL = "C_TEST_CHANNEL"  # matches conftest SLACK_CHANNEL_ID
 
 
-def _signed_event(payload: dict, secret: str = TEST_SIGNING_SECRET, timestamp: int | None = None) -> dict:
+def _signed_event(
+    payload: dict, secret: str = TEST_SIGNING_SECRET, timestamp: int | None = None
+) -> dict:
     """Build an API Gateway proxy event with a valid Slack v0 signature."""
     body = json.dumps(payload)
     ts = str(timestamp or int(time.time()))
-    basestring = f"v0:{ts}:{body}".encode("utf-8")
+    basestring = f"v0:{ts}:{body}".encode()
     sig = "v0=" + hmac.new(secret.encode("utf-8"), basestring, hashlib.sha256).hexdigest()
     return {
         "body": body,
@@ -35,7 +36,9 @@ def _signed_event(payload: dict, secret: str = TEST_SIGNING_SECRET, timestamp: i
     }
 
 
-def _message_event(text: str, thread_ts: str = "1713400000.000100", user: str = "U123", channel: str = TEST_CHANNEL) -> dict:
+def _message_event(
+    text: str, thread_ts: str = "1713400000.000100", user: str = "U123", channel: str = TEST_CHANNEL
+) -> dict:
     return {
         "type": "event_callback",
         "event_id": "Ev12345",
@@ -54,23 +57,33 @@ def _message_event(text: str, thread_ts: str = "1713400000.000100", user: str = 
 # Intent classification (pure function, no AWS/HTTP)
 # ───────────────────────────────────────────────────────────────────
 
+
 def test_classify_intent_note():
     assert _classify_intent("note: extra towels please") == ("note", "extra towels please")
+
 
 def test_classify_intent_issue():
     assert _classify_intent("issue: projector cord missing") == ("issue", "projector cord missing")
 
+
 def test_classify_intent_resolved_alone():
     assert _classify_intent("resolved") == ("resolution", "")
+
 
 def test_classify_intent_resolved_with_trailing_text():
     assert _classify_intent("resolved — called the guest") == ("resolution", "called the guest")
 
+
 def test_classify_intent_case_insensitive_prefix():
     assert _classify_intent("NOTE: hello") == ("note", "hello")
 
+
 def test_classify_intent_question_by_default():
-    assert _classify_intent("what is the wifi password?") == ("question", "what is the wifi password?")
+    assert _classify_intent("what is the wifi password?") == (
+        "question",
+        "what is the wifi password?",
+    )
+
 
 def test_classify_intent_not_resolved_substring():
     """'resolvedly' or 'resolver' shouldn't trigger resolution."""
@@ -80,6 +93,7 @@ def test_classify_intent_not_resolved_substring():
 # ───────────────────────────────────────────────────────────────────
 # Signature verification
 # ───────────────────────────────────────────────────────────────────
+
 
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
 def test_verify_signature_valid(mock_secret):
@@ -116,6 +130,7 @@ def test_verify_signature_no_secret_configured(mock_secret):
 # URL verification challenge
 # ───────────────────────────────────────────────────────────────────
 
+
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
 def test_url_verification_echoes_challenge(mock_secret):
     event = _signed_event({"type": "url_verification", "challenge": "abc123"})
@@ -127,6 +142,7 @@ def test_url_verification_echoes_challenge(mock_secret):
 # ───────────────────────────────────────────────────────────────────
 # Invalid signature → 401
 # ───────────────────────────────────────────────────────────────────
+
 
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
 def test_invalid_signature_returns_401(mock_secret):
@@ -146,9 +162,12 @@ def test_invalid_signature_returns_401(mock_secret):
 # Retry short-circuit
 # ───────────────────────────────────────────────────────────────────
 
+
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
 def test_retry_header_acks_without_processing(mock_secret):
-    event = _signed_event({"type": "event_callback", "event": {"type": "message", "thread_ts": "x"}})
+    event = _signed_event(
+        {"type": "event_callback", "event": {"type": "message", "thread_ts": "x"}}
+    )
     event["headers"]["X-Slack-Retry-Num"] = "1"
     event["headers"]["X-Slack-Retry-Reason"] = "http_timeout"
     result = slack_events_handler(event, None)
@@ -158,6 +177,7 @@ def test_retry_header_acks_without_processing(mock_secret):
 # ───────────────────────────────────────────────────────────────────
 # End-to-end: log actions + question routing
 # ───────────────────────────────────────────────────────────────────
+
 
 @mock_aws
 @patch("thread_handler.post_thread_reply")
@@ -180,6 +200,7 @@ def test_note_prefix_logs_and_confirms(mock_secret, mock_post, all_thread_tables
 
     # Log was written
     from thread_logs import ThreadLogs
+
     logs = ThreadLogs().get_logs("res-abc")
     assert len(logs) == 1
     assert logs[0]["type"] == "note"
@@ -197,8 +218,8 @@ def test_note_prefix_logs_and_confirms(mock_secret, mock_post, all_thread_tables
 @patch("thread_handler.post_thread_reply")
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
 def test_issue_prefix_logs(mock_secret, mock_post, all_thread_tables):
-    from thread_mapping import ThreadMapping
     from thread_logs import ThreadLogs
+    from thread_mapping import ThreadMapping
 
     ThreadMapping().put_mapping("1.1", "res-X", "prop-1", "Villa", "Jane")
     event = _signed_event(_message_event("issue: cord missing", thread_ts="1.1"))
@@ -213,8 +234,8 @@ def test_issue_prefix_logs(mock_secret, mock_post, all_thread_tables):
 @patch("thread_handler.post_thread_reply")
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
 def test_resolved_prefix_logs(mock_secret, mock_post, all_thread_tables):
-    from thread_mapping import ThreadMapping
     from thread_logs import ThreadLogs
+    from thread_mapping import ThreadMapping
 
     ThreadMapping().put_mapping("1.2", "res-Y", "prop-1", "Villa", "Jane")
     event = _signed_event(_message_event("resolved", thread_ts="1.2"))
@@ -230,7 +251,9 @@ def test_resolved_prefix_logs(mock_secret, mock_post, all_thread_tables):
 @patch("thread_handler.post_thread_reply")
 @patch("thread_handler.HospitableClient")
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
-def test_question_is_answered_via_claude(mock_secret, mock_hospitable, mock_post, mock_qa, all_thread_tables):
+def test_question_is_answered_via_claude(
+    mock_secret, mock_hospitable, mock_post, mock_qa, all_thread_tables
+):
     """Plain text → treated as a question → Claude answer posted in thread."""
     from thread_mapping import ThreadMapping
 
@@ -260,6 +283,7 @@ def test_question_is_answered_via_claude(mock_secret, mock_hospitable, mock_post
 # Filters
 # ───────────────────────────────────────────────────────────────────
 
+
 @mock_aws
 @patch("thread_handler.post_thread_reply")
 @patch("thread_handler.get_slack_signing_secret", return_value=TEST_SIGNING_SECRET)
@@ -268,7 +292,10 @@ def test_unknown_thread_posts_help(mock_secret, mock_post, all_thread_tables):
     event = _signed_event(_message_event("what's up?", thread_ts="never-seen-ts"))
     slack_events_handler(event, None)
     mock_post.assert_called_once()
-    assert "mapping" in mock_post.call_args.args[1].lower() or "thread" in mock_post.call_args.args[1].lower()
+    assert (
+        "mapping" in mock_post.call_args.args[1].lower()
+        or "thread" in mock_post.call_args.args[1].lower()
+    )
 
 
 @mock_aws

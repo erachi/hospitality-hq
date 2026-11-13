@@ -15,11 +15,10 @@ the index and a few operational attributes we want to query on without
 touching S3.
 """
 
-import boto3
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
+import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
@@ -54,7 +53,7 @@ class StayChannels:
         check_in: str,
         check_out: str,
         journal_s3_key: str,
-        last_mirrored_hospitable_ts: Optional[str] = None,
+        last_mirrored_hospitable_ts: str | None = None,
     ) -> None:
         """Record a newly provisioned stay channel.
 
@@ -89,9 +88,7 @@ class StayChannels:
         except ClientError as e:
             logger.error("Failed to put stay-channel row for %s: %s", reservation_uuid, e)
 
-    def update_last_mirrored(
-        self, reservation_uuid: str, hospitable_ts: str
-    ) -> None:
+    def update_last_mirrored(self, reservation_uuid: str, hospitable_ts: str) -> None:
         """Advance the high-water mark of mirrored Hospitable messages."""
         if not reservation_uuid or not hospitable_ts:
             return
@@ -102,9 +99,7 @@ class StayChannels:
                 ExpressionAttributeValues={":t": hospitable_ts},
             )
         except ClientError as e:
-            logger.error(
-                "Failed to update last_mirrored for %s: %s", reservation_uuid, e
-            )
+            logger.error("Failed to update last_mirrored for %s: %s", reservation_uuid, e)
 
     def mark_archived(self, reservation_uuid: str) -> None:
         """Flip status to archived and stamp archived_at."""
@@ -121,9 +116,7 @@ class StayChannels:
                 },
             )
         except ClientError as e:
-            logger.error(
-                "Failed to mark archived for %s: %s", reservation_uuid, e
-            )
+            logger.error("Failed to mark archived for %s: %s", reservation_uuid, e)
 
     def mark_active(self, reservation_uuid: str) -> None:
         """Flip status back to active and clear archived_at. For restore."""
@@ -137,13 +130,11 @@ class StayChannels:
                 ExpressionAttributeValues={":s": STATUS_ACTIVE},
             )
         except ClientError as e:
-            logger.error(
-                "Failed to mark active for %s: %s", reservation_uuid, e
-            )
+            logger.error("Failed to mark active for %s: %s", reservation_uuid, e)
 
     # ─── Reads ───────────────────────────────────────────────────────
 
-    def get_by_reservation(self, reservation_uuid: str) -> Optional[dict]:
+    def get_by_reservation(self, reservation_uuid: str) -> dict | None:
         """Fetch the channel row for a reservation, or None."""
         if not reservation_uuid:
             return None
@@ -158,7 +149,7 @@ class StayChannels:
             )
             return None
 
-    def get_by_channel(self, channel_id: str) -> Optional[dict]:
+    def get_by_channel(self, channel_id: str) -> dict | None:
         """Resolve a Slack channel_id back to a reservation row via GSI."""
         if not channel_id:
             return None
@@ -171,9 +162,7 @@ class StayChannels:
             items = resp.get("Items") or []
             return items[0] if items else None
         except ClientError as e:
-            logger.error(
-                "Failed to query by channel %s: %s", channel_id, e
-            )
+            logger.error("Failed to query by channel %s: %s", channel_id, e)
             return None
 
     def list_active(self) -> list[dict]:
@@ -207,4 +196,4 @@ class StayChannels:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

@@ -9,10 +9,8 @@ Haiku is used for latency — Slack retries if we don't 200 within 3s.
 
 import logging
 
-import anthropic
-
-from config import get_anthropic_key, CLASSIFY_MODEL
 from classifier import _get_client  # reuse cached client
+from config import CLASSIFY_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -66,15 +64,11 @@ def answer(
 
     if hospitable_kb_context.strip():
         sections.append(
-            "═══ Supplemental — Hospitable Knowledge Hub ═══\n"
-            + hospitable_kb_context[:3000]
+            "═══ Supplemental — Hospitable Knowledge Hub ═══\n" + hospitable_kb_context[:3000]
         )
 
     if conversation_history.strip():
-        sections.append(
-            "═══ Recent conversation with guest ═══\n"
-            + conversation_history[:2000]
-        )
+        sections.append("═══ Recent conversation with guest ═══\n" + conversation_history[:2000])
 
     sections.append(f"Host's question in the internal thread:\n{question.strip()}")
 

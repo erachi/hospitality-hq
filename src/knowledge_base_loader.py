@@ -11,7 +11,6 @@ Lambda cold start.
 import logging
 import os
 from functools import lru_cache
-from typing import Optional
 
 import yaml
 
@@ -50,7 +49,7 @@ def load_kb(property_id: str) -> dict:
 
     path = os.path.join(_KB_DIR, f"{filename}.yaml")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
             if not isinstance(data, dict):
                 data = {}
@@ -63,7 +62,7 @@ def load_kb(property_id: str) -> dict:
 
     snapshot_path = os.path.join(_KB_DIR, f"{filename}.hospitable_hub.yaml")
     try:
-        with open(snapshot_path, "r", encoding="utf-8") as f:
+        with open(snapshot_path, encoding="utf-8") as f:
             snapshot = yaml.safe_load(f) or {}
         hub = snapshot.get("hospitable_snapshot") if isinstance(snapshot, dict) else None
         if isinstance(hub, dict):
@@ -76,7 +75,7 @@ def load_kb(property_id: str) -> dict:
     return data
 
 
-def get_property_name(property_id: str) -> Optional[str]:
+def get_property_name(property_id: str) -> str | None:
     """Convenience: return the canonical property name from the KB, if known."""
     kb = load_kb(property_id)
     return kb.get("property", {}).get("name")
@@ -92,7 +91,7 @@ _UUID_TO_SLUG = {
 }
 
 
-def get_property_slug(property_id: str) -> Optional[str]:
+def get_property_slug(property_id: str) -> str | None:
     """Return the short slug (e.g. "palm") for a Hospitable property UUID.
 
     None when unmapped — the caller decides the fallback.
@@ -126,8 +125,7 @@ def format_for_claude(kb: dict) -> str:
     static_block = _render_dict(static)
     if static_block.strip():
         parts.append(
-            "═══ AUTHORITATIVE FACTS (cite these exactly — do not contradict) ═══\n"
-            + static_block
+            "═══ AUTHORITATIVE FACTS (cite these exactly — do not contradict) ═══\n" + static_block
         )
 
     dynamic = kb.get("dynamic") or {}
@@ -187,9 +185,7 @@ def _render_hub_snapshot(snapshot: dict) -> str:
     if not lines:
         return ""
     fetched_at = snapshot.get("fetched_at") or "unknown"
-    header = (
-        f"═══ HOSPITABLE HUB SNAPSHOT (supplemental; fetched_at {fetched_at}) ═══"
-    )
+    header = f"═══ HOSPITABLE HUB SNAPSHOT (supplemental; fetched_at {fetched_at}) ═══"
     return header + "\n" + "\n".join(lines)
 
 

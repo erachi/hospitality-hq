@@ -29,13 +29,12 @@ Design invariants:
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from config import (
-    STAY_CHANNELS_ENABLED,
     STAY_CHANNEL_INVITE_USER_IDS,
     STAY_CHANNEL_NAME_PREFIX,
+    STAY_CHANNELS_ENABLED,
     STAY_JOURNAL_PREFIX,
     STAY_SLACK_BACKFILL_DAYS,
 )
@@ -65,6 +64,7 @@ _SOURCE_BY_SENDER = {
 
 
 # ─── Slug ──────────────────────────────────────────────────────────────
+
 
 def _slugify(text: str) -> str:
     """Lowercase ASCII slug: keep [a-z0-9-], collapse repeats, trim.
@@ -120,6 +120,7 @@ def build_stay_channel_name(
 
 # ─── Journal helpers ───────────────────────────────────────────────────
 
+
 def _source_from_sender(sender_type: str) -> str:
     """Map Hospitable sender_type to a journal source."""
     return _SOURCE_BY_SENDER.get((sender_type or "").lower(), SOURCE_HOSPITABLE_HOST)
@@ -147,6 +148,7 @@ def _message_ts(message: dict) -> str:
 
 # ─── Provisioner ───────────────────────────────────────────────────────
 
+
 def provision_if_missing(
     *,
     reservation_uuid: str,
@@ -159,9 +161,9 @@ def provision_if_missing(
     reservation_snapshot: dict,
     hospitable_client,
     slack_client,
-    stay_channels: Optional[StayChannels] = None,
-    stay_store: Optional[StayStore] = None,
-) -> Optional[dict]:
+    stay_channels: StayChannels | None = None,
+    stay_store: StayStore | None = None,
+) -> dict | None:
     """Idempotently provision a per-stay Slack channel.
 
     Returns the `StayChannels` row dict on success (existing or new);
@@ -223,17 +225,15 @@ def provision_if_missing(
     try:
         stay_store.put(journal)
     except Exception as e:
-        logger.error(
-            "provisioner: journal write failed for %s: %s", reservation_uuid, e
-        )
+        logger.error("provisioner: journal write failed for %s: %s", reservation_uuid, e)
         return None
 
     # 2. Create the Slack channel. Collisions are rare (property + guest
     #    + check-in date) but if someone double-books the same guest on
     #    the same date we try -2, -3, … up to 5.
     base_name = build_stay_channel_name(property_slug, guest_name, check_in)
-    channel_id: Optional[str] = None
-    channel_name: Optional[str] = None
+    channel_id: str | None = None
+    channel_name: str | None = None
     for attempt in range(1, _MAX_COLLISION_RETRIES + 1):
         candidate = (
             build_stay_channel_name(property_slug, guest_name, check_in, suffix=attempt)
@@ -257,9 +257,7 @@ def provision_if_missing(
             break
         err = result.get("error", "")
         if err == "name_taken":
-            logger.info(
-                "provisioner: %s taken, trying -%d", candidate, attempt + 1
-            )
+            logger.info("provisioner: %s taken, trying -%d", candidate, attempt + 1)
             continue
         if err == "missing_scope":
             logger.error(
@@ -268,9 +266,7 @@ def provision_if_missing(
                 reservation_uuid,
             )
             return None
-        logger.error(
-            "provisioner: Slack create failed for %s: %s", reservation_uuid, err
-        )
+        logger.error("provisioner: Slack create failed for %s: %s", reservation_uuid, err)
         return None
 
     if not channel_id:
@@ -328,7 +324,7 @@ def provision_if_missing(
     # 5. Backfill recent transcript into Slack. Full record is in the
     #    journal; Slack gets only the last STAY_SLACK_BACKFILL_DAYS so
     #    free-plan retention doesn't matter.
-    cutoff = datetime.now(timezone.utc) - timedelta(days=STAY_SLACK_BACKFILL_DAYS)
+    cutoff = datetime.now(UTC) - timedelta(days=STAY_SLACK_BACKFILL_DAYS)
     recent = []
     older_count = 0
     for msg in messages:
@@ -397,15 +393,16 @@ def provision_if_missing(
 
 # ─── Mirror ─────────────────────────────────────────────────────────────
 
+
 def mirror_message(
     *,
     reservation_uuid: str,
     message: dict,
     slack_client,
-    stay_channels: Optional[StayChannels] = None,
-    stay_store: Optional[StayStore] = None,
+    stay_channels: StayChannels | None = None,
+    stay_store: StayStore | None = None,
     guest_name: str = "",
-) -> Optional[str]:
+) -> str | None:
     """Append a Hospitable message to the stay journal + stay channel.
 
     Returns the Slack message ts on success, None otherwise. Idempotent:
@@ -435,13 +432,9 @@ def mirror_message(
 
     # Journal first — durable.
     try:
-        stay_store.append_entry(
-            reservation_uuid, _entry_from_hospitable_message(message)
-        )
+        stay_store.append_entry(reservation_uuid, _entry_from_hospitable_message(message))
     except Exception as e:
-        logger.error(
-            "mirror: journal append failed for %s: %s", reservation_uuid, e
-        )
+        logger.error("mirror: journal append failed for %s: %s", reservation_uuid, e)
         return None
 
     # Then Slack.
@@ -453,9 +446,7 @@ def mirror_message(
     try:
         result = slack_client.post_message(channel_id, text=text)
     except Exception as e:
-        logger.warning(
-            "mirror: Slack post failed for %s: %s", reservation_uuid, e
-        )
+        logger.warning("mirror: Slack post failed for %s: %s", reservation_uuid, e)
         return None
 
     posted_ts = result.get("ts") or (result.get("message") or {}).get("ts")
@@ -496,6 +487,7 @@ def mirror_message(
 
 
 # ─── Formatting ────────────────────────────────────────────────────────
+
 
 def _format_hospitable_message(message: dict, guest_name: str) -> str:
     """Attributed Slack-mrkdwn line for one Hospitable message."""
@@ -551,9 +543,7 @@ def _build_intro_blocks(
         guest_bits.append(f"*Phone:* {phone}")
 
     hospitable_url = (
-        f"https://my.hospitable.com/inbox/conversation/{rs.get('id', '')}"
-        if rs.get("id")
-        else ""
+        f"https://my.hospitable.com/inbox/conversation/{rs.get('id', '')}" if rs.get("id") else ""
     )
 
     blocks: list[dict] = [
@@ -563,9 +553,7 @@ def _build_intro_blocks(
         blocks.append(
             {
                 "type": "context",
-                "elements": [
-                    {"type": "mrkdwn", "text": " · ".join(context_bits)}
-                ],
+                "elements": [{"type": "mrkdwn", "text": " · ".join(context_bits)}],
             }
         )
     if guest_bits:
@@ -586,15 +574,13 @@ def _build_intro_blocks(
         blocks.append(
             {
                 "type": "context",
-                "elements": [
-                    {"type": "mrkdwn", "text": " · ".join(footer_bits)}
-                ],
+                "elements": [{"type": "mrkdwn", "text": " · ".join(footer_bits)}],
             }
         )
     return blocks
 
 
-def _parse_iso(ts: str) -> Optional[datetime]:
+def _parse_iso(ts: str) -> datetime | None:
     """Parse an ISO-8601 timestamp into a UTC-aware datetime, or None."""
     if not ts:
         return None
@@ -604,7 +590,7 @@ def _parse_iso(ts: str) -> Optional[datetime]:
             s = s[:-1] + "+00:00"
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
     except (ValueError, TypeError):
         return None

@@ -9,7 +9,6 @@ sys.path.insert(0, str(SCRIPTS))
 
 import evaluate_knowledge_base as ev  # noqa: E402
 
-
 # ------------------------------- audit -----------------------------------
 
 
@@ -26,7 +25,12 @@ def test_audit_flags_near_empty_hub():
 
 
 def test_audit_flags_empty_topic():
-    snapshot = {"topics": [{"name": "Empty Topic", "items": []}, {"name": "T", "items": [{"id": 1, "content": "x" * 40}] * 5}]}
+    snapshot = {
+        "topics": [
+            {"name": "Empty Topic", "items": []},
+            {"name": "T", "items": [{"id": 1, "content": "x" * 40}] * 5},
+        ]
+    }
     findings = ev.audit_content(snapshot)
     assert any("Empty topic" in f["finding"] for f in findings)
 
@@ -47,7 +51,15 @@ def test_audit_flags_duplicate_content():
 
 
 def test_audit_flags_short_item():
-    snapshot = {"topics": [{"name": "T", "items": [{"id": 1, "content": "short"}] + [{"id": i, "content": "x" * 40} for i in range(10, 20)]}]}
+    snapshot = {
+        "topics": [
+            {
+                "name": "T",
+                "items": [{"id": 1, "content": "short"}]
+                + [{"id": i, "content": "x" * 40} for i in range(10, 20)],
+            }
+        ]
+    }
     findings = ev.audit_content(snapshot)
     assert any("Very short item" in f["finding"] for f in findings)
 
@@ -84,7 +96,9 @@ def test_consistency_no_flag_when_local_value_appears_in_hub():
 
 def test_consistency_skips_todo_local_values():
     curated = {"static": {"wifi": {"password": "TODO"}}}
-    snapshot = {"topics": [{"name": "W", "items": [{"id": 1, "content": "the wifi password is X"}]}]}
+    snapshot = {
+        "topics": [{"name": "W", "items": [{"id": 1, "content": "the wifi password is X"}]}]
+    }
     findings = ev.check_consistency(curated, snapshot)
     assert findings == []
 
@@ -104,7 +118,9 @@ def test_coverage_marks_missing_topics():
 
 
 def test_coverage_credits_local_static_and_hub_snapshot():
-    curated = {"static": {"wifi": {"network": "x", "password": "y"}, "parking": {"driveway_capacity": 2}}}
+    curated = {
+        "static": {"wifi": {"network": "x", "password": "y"}, "parking": {"driveway_capacity": 2}}
+    }
     snapshot = {"topics": [{"name": "Rules & Policies", "slug": "rules_policies", "items": []}]}
     coverage = ev.coverage_gap(curated, snapshot)
     by_topic = {row["topic"]: row["covered_by"] for row in coverage}
@@ -142,9 +158,7 @@ def test_judge_item_strips_markdown_fences():
 def test_judge_snapshot_respects_max_items():
     client = _make_mock_client('{"c1":5,"c2":5,"c3":5,"c4":5,"notes":""}')
     snapshot = {
-        "topics": [
-            {"name": "T", "items": [{"id": i, "content": f"item {i}"} for i in range(10)]}
-        ]
+        "topics": [{"name": "T", "items": [{"id": i, "content": f"item {i}"} for i in range(10)]}]
     }
     judged = ev.judge_snapshot(snapshot, max_items=3, client=client, model="sonnet")
     assert len(judged) == 3
@@ -159,11 +173,11 @@ def test_evaluate_property_writes_report_for_empty_hub(monkeypatch, tmp_path):
     import knowledge_base_loader
 
     (tmp_path / "palm_club.yaml").write_text(
-        'property:\n  name: The Palm Club\n  id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570\nstatic: {}\n',
+        "property:\n  name: The Palm Club\n  id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570\nstatic: {}\n",
         encoding="utf-8",
     )
     (tmp_path / "palm_club.hospitable_hub.yaml").write_text(
-        'property:\n  id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570\n  slug: palm_club\n'
+        "property:\n  id: 3278e9cb-9239-487f-aa51-cbfbaf4b7570\n  slug: palm_club\n"
         'hospitable_snapshot:\n  fetched_at: "2026-11-02T00:00:00Z"\n  topics: []\n',
         encoding="utf-8",
     )

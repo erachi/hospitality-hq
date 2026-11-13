@@ -34,7 +34,6 @@ from stay_models import (
 )
 from stay_store import StayStore
 
-
 # ─── _extract_draft ─────────────────────────────────────────────────────
 
 
@@ -317,9 +316,7 @@ def _draft_action_payload(
 
 
 @mock_aws
-def test_send_draft_calls_hospitable_and_journals_sent(
-    stay_channels_table, stay_journal_bucket
-):
+def test_send_draft_calls_hospitable_and_journals_sent(stay_channels_table, stay_journal_bucket):
     _seed_live_stay()
     hospitable = MagicMock()
     hospitable.send_reservation_message.return_value = {"ok": True}
@@ -332,9 +329,7 @@ def test_send_draft_calls_hospitable_and_journals_sent(
             slack_client=slack,
         )
 
-    hospitable.send_reservation_message.assert_called_once_with(
-        "res-x", "Hi Jane, confirmed!"
-    )
+    hospitable.send_reservation_message.assert_called_once_with("res-x", "Hi Jane, confirmed!")
     mock_update.assert_called_once()
     # Card was updated with a "Sent" status.
     status_text = mock_update.call_args.args[-1]
@@ -424,9 +419,7 @@ def test_send_draft_records_failure_when_hospitable_errors(
 
 
 @mock_aws
-def test_discard_draft_updates_card_and_journals(
-    stay_channels_table, stay_journal_bucket
-):
+def test_discard_draft_updates_card_and_journals(stay_channels_table, stay_journal_bucket):
     _seed_live_stay()
     slack = MagicMock()
 
@@ -600,9 +593,10 @@ def test_handle_mirrored_guest_message_noop_outside_in_stay_window(
     # False because today (whenever tests run) is not between 2026-11-19
     # and 2026-11-25 for the seeded stay. We also patch it explicitly to
     # avoid false negatives if someone runs these tests in late 2026.
-    with patch("stay_agent.is_in_stay_window", return_value=False), patch(
-        "stay_agent._call_claude"
-    ) as mock_claude:
+    with (
+        patch("stay_agent.is_in_stay_window", return_value=False),
+        patch("stay_agent._call_claude") as mock_claude,
+    ):
         handle_mirrored_guest_message(
             reservation_uuid="res-x",
             stay_row=row,

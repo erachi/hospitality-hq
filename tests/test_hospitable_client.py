@@ -1,7 +1,9 @@
 """Tests for the Hospitable API client."""
 
-import responses
 from unittest.mock import patch
+
+import responses
+
 from hospitable_client import HospitableClient
 
 

@@ -11,11 +11,9 @@ the helpers here normalize to 2dp on write.
 """
 
 import re
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
-
 
 # EXP-YYYY-NNNN — year + 4-digit zero-padded sequence
 EXPENSE_ID_RE = re.compile(r"^EXP-(\d{4})-(\d{4})$")
@@ -36,8 +34,8 @@ class Allocation:
     """
 
     property_id: str
-    percent: str    # "100.00"
-    amount: str     # "311.97"
+    percent: str  # "100.00"
+    amount: str  # "311.97"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -64,11 +62,11 @@ class Allocation:
 class Expense:
     """A receipt + its extracted metadata."""
 
-    id: str                       # "EXP-2026-0042"
+    id: str  # "EXP-2026-0042"
     submitter_slack_id: str
     merchant_name: str
-    transaction_date: str         # "YYYY-MM-DD" — date printed on the receipt
-    total: str                    # decimal string, e.g. "311.97"
+    transaction_date: str  # "YYYY-MM-DD" — date printed on the receipt
+    total: str  # decimal string, e.g. "311.97"
     currency: str
     image_s3_key: str
     image_sha256: str
@@ -76,20 +74,20 @@ class Expense:
     ocr_model: str
     slack_channel_id: str
     slack_thread_ts: str
-    created_at: str               # UTC ISO-8601 with trailing Z
+    created_at: str  # UTC ISO-8601 with trailing Z
     updated_at: str
-    subtotal: Optional[str] = None
-    tax: Optional[str] = None
-    tip: Optional[str] = None
-    category_id: Optional[str] = None
-    property_id: Optional[str] = None
-    payment_method: Optional[str] = None
-    notes: Optional[str] = None
-    thumbnail_s3_key: Optional[str] = None
-    ocr_extraction_confidence: Optional[str] = None
-    ocr_category_confidence: Optional[str] = None
+    subtotal: str | None = None
+    tax: str | None = None
+    tip: str | None = None
+    category_id: str | None = None
+    property_id: str | None = None
+    payment_method: str | None = None
+    notes: str | None = None
+    thumbnail_s3_key: str | None = None
+    ocr_extraction_confidence: str | None = None
+    ocr_category_confidence: str | None = None
     needs_review: bool = False
-    review_reason: Optional[str] = None
+    review_reason: str | None = None
     is_personal: bool = False
     allocations: list[Allocation] = field(default_factory=list)
 
@@ -148,10 +146,10 @@ def money_str(value) -> str:
 
 def now_iso() -> str:
     """Current UTC time as ISO-8601 with trailing Z."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def year_for_transaction(transaction_date: Optional[str] = None) -> str:
+def year_for_transaction(transaction_date: str | None = None) -> str:
     """Year to file a new expense under.
 
     Prefers the receipt's printed date over the upload date — so a
@@ -159,4 +157,4 @@ def year_for_transaction(transaction_date: Optional[str] = None) -> str:
     """
     if transaction_date and len(transaction_date) >= 4:
         return transaction_date[:4]
-    return datetime.now(timezone.utc).strftime("%Y")
+    return datetime.now(UTC).strftime("%Y")
