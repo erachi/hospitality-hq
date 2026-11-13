@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   One-time bootstrap: GitHub OIDC provider + deploy role trusted by the
-  hospitality-hq repo on refs/heads/main. Deploy manually with:
+  hospitality-hq repo's `prod` GitHub Actions environment. Deploy manually with:
 
     aws cloudformation deploy \
       --stack-name hospitality-hq-github-oidc \
@@ -18,10 +18,14 @@ Parameters:
     Description: GitHub repo in "owner/name" form, e.g. erachi/hospitality-hq
     AllowedPattern: "^[^/]+/[^/]+$"
 
-  GithubBranch:
+  GithubEnvironment:
     Type: String
-    Default: main
-    Description: Branch the deploy role will trust. CD only runs on this branch.
+    Default: prod
+    Description: >
+      GitHub Actions environment name the deploy role will trust. When a job
+      names an `environment:`, GitHub's OIDC token uses an environment subject
+      (`...:environment:<name>`) instead of a branch subject — so the trust
+      policy matches on the environment, not the ref.
 
   CreateOIDCProvider:
     Type: String
@@ -66,7 +70,7 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                token.actions.githubusercontent.com:sub: !Sub repo:${GithubRepo}:ref:refs/heads/${GithubBranch}
+                token.actions.githubusercontent.com:sub: !Sub repo:${GithubRepo}:environment:${GithubEnvironment}
       MaxSessionDuration: 3600
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/PowerUserAccess

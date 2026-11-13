@@ -1,5 +1,4 @@
-# Secrets & config with secrets
-samconfig.toml
+# Secrets
 keys
 .env
 *.env.*
