@@ -7,7 +7,7 @@ One-time AWS setup for continuous deployment. Everything in this folder is deplo
 - **`github-oidc.yaml`** — CloudFormation template that creates:
   - The GitHub OIDC identity provider (one per AWS account).
   - An IAM role `hospitality-hq-github-deploy` that GitHub Actions assumes to run `sam deploy`.
-  - A trust policy scoped to `erachi/hospitality-hq` on `refs/heads/main` only — no other repo or branch can assume this role.
+  - A trust policy scoped to `erachi/hospitality-hq`'s `prod` GitHub Actions environment — no other repo or environment can assume this role. A job must declare `environment: prod` for its OIDC token to match.
 
 ## One-time deploy
 
@@ -37,11 +37,11 @@ After the stack is created:
 
 ## Permissions model
 
-The deploy role has `PowerUserAccess` plus scoped IAM permissions for roles named `hospitality-hq-*`. This is broad but the trust policy is narrow: only `erachi/hospitality-hq`'s `main` branch, as validated by GitHub's OIDC token, can assume this role. No long-lived AWS keys exist for this path.
+The deploy role has `PowerUserAccess` plus scoped IAM permissions for roles named `hospitality-hq-*`. This is broad but the trust policy is narrow: only an `erachi/hospitality-hq` workflow job that declares `environment: prod` can assume this role, as validated by GitHub's OIDC token. No long-lived AWS keys exist for this path.
 
 Tighten later if you want (scope service permissions to specific resource ARNs), but the current shape matches what AWS recommends for small-team SAM deployments.
 
 ## Rotating / revoking
 
 - To revoke CD: delete the CloudFormation stack, or revoke the trust by editing the role's trust policy in the AWS Console.
-- To change the trusted branch: update the `GithubBranch` parameter and re-run the deploy command.
+- To change the trusted environment: update the `GithubEnvironment` parameter (and the `environment:` field on the `deploy` job in `ci.yml`) and re-run the deploy command.
