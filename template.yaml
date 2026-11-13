@@ -63,11 +63,25 @@ Parameters:
     Default: "14"
     Description: How many days of Hospitable transcript to replay into a new stay channel
 
+  AppConfigExtensionLayerArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension:207
+    Description: >
+      AWS-published Lambda extension that serves AppConfig data on
+      localhost:2772. Pinned to a specific version; bump when updating.
+
 Globals:
   Function:
     Timeout: 120
     Runtime: python3.12
     MemorySize: 256
+    Layers:
+      - !Ref AppConfigExtensionLayerArn
+    Environment:
+      Variables:
+        APPCONFIG_APP: !Ref AppConfigApplication
+        APPCONFIG_ENV: !Ref AppConfigEnvironment
+        APPCONFIG_PROFILE: !Ref AppConfigFeatureFlagsProfile
 
 Resources:
   # ═══════════════════════════════════════════════════════════════
@@ -104,6 +118,7 @@ Resources:
           STAY_CHANNEL_INVITE_USER_IDS: !Ref StayChannelInviteUserIds
           STAY_SLACK_BACKFILL_DAYS: !Ref StaySlackBackfillDays
       Policies:
+        - !Ref AppConfigReadPolicy
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
         - DynamoDBCrudPolicy:
@@ -173,6 +188,7 @@ Resources:
           STAY_CHANNEL_INVITE_USER_IDS: !Ref StayChannelInviteUserIds
           STAY_SLACK_BACKFILL_DAYS: !Ref StaySlackBackfillDays
       Policies:
+        - !Ref AppConfigReadPolicy
         - DynamoDBCrudPolicy:
             TableName: !Ref MessagesTable
         - DynamoDBCrudPolicy:
@@ -334,6 +350,7 @@ Resources:
           TASKS_BUCKET: !Ref TasksBucketName
           TASKS_CHANNEL_ID: !Ref TasksChannelId
       Policies:
+        - !Ref AppConfigReadPolicy
         - DynamoDBCrudPolicy:
             TableName: !Ref ThreadMappingTable
         - DynamoDBCrudPolicy:
@@ -433,6 +450,7 @@ Resources:
           STAY_JOURNAL_BUCKET: !Ref TasksBucketName
           STAY_JOURNAL_PREFIX: "stays/"
       Policies:
+        - !Ref AppConfigReadPolicy
         - DynamoDBCrudPolicy:
             TableName: !Ref StayChannelsTable
         - Statement:
@@ -553,6 +571,7 @@ Resources:
           # needs read access to the tasks bucket too.
           TASKS_BUCKET: !Ref TasksBucket
       Policies:
+        - !Ref AppConfigReadPolicy
         - S3CrudPolicy:
             BucketName: !Ref ExpensesBucket
         # Receipts use Object Lock retention; S3CrudPolicy does not grant
@@ -606,6 +625,7 @@ Resources:
           TASKS_BUCKET: !Ref TasksBucket
           TASKS_CHANNEL_ID: !Ref TasksChannelId
       Policies:
+        - !Ref AppConfigReadPolicy
         - S3CrudPolicy:
             BucketName: !Ref TasksBucket
         - Statement:
@@ -650,6 +670,7 @@ Resources:
           TASKS_BUCKET: !Ref TasksBucket
           TASKS_CHANNEL_ID: !Ref TasksChannelId
       Policies:
+        - !Ref AppConfigReadPolicy
         - S3ReadPolicy:
             BucketName: !Ref TasksBucket
         - Statement:
@@ -699,6 +720,7 @@ Resources:
           SSM_PREFIX: !Ref SSMPrefix
           OPS_SLACK_CHANNEL_ID: !Ref OpsSlackChannelId
       Policies:
+        - !Ref AppConfigReadPolicy
         # NOTE: We build the SSM ARN explicitly instead of using SAM's
         # SSMParameterReadPolicy macro. The macro concatenates "parameter/" +
         # ParameterName, so a ParameterName that starts with "/" (like
@@ -1004,6 +1026,74 @@ Resources:
             }
           ]
         }
+
+  # ═══════════════════════════════════════════════════════════════
+  # Feature flags — AWS AppConfig
+  # ═══════════════════════════════════════════════════════════════
+  # Flags are defined inline in AppConfigInitialFlagsVersion below.
+  # To add a flag: edit the Content JSON (both `flags` and `values`
+  # blocks), deploy, then flip via the AppConfig console when ready.
+  # To remove: delete the if-branch in code first, then remove the
+  # flag from the Content JSON on the next deploy.
+
+  AppConfigApplication:
+    Type: AWS::AppConfig::Application
+    Properties:
+      Name: hospitality-hq
+
+  AppConfigEnvironment:
+    Type: AWS::AppConfig::Environment
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      Name: prod
+
+  AppConfigFeatureFlagsProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      Name: feature-flags
+      LocationUri: hosted
+      Type: AWS.AppConfig.FeatureFlags
+
+  AppConfigInitialFlagsVersion:
+    Type: AWS::AppConfig::HostedConfigurationVersion
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      ConfigurationProfileId: !Ref AppConfigFeatureFlagsProfile
+      ContentType: application/json
+      Content: |
+        {
+          "flags": {},
+          "values": {},
+          "version": "1"
+        }
+
+  AppConfigInitialDeployment:
+    Type: AWS::AppConfig::Deployment
+    Properties:
+      ApplicationId: !Ref AppConfigApplication
+      EnvironmentId: !Ref AppConfigEnvironment
+      ConfigurationProfileId: !Ref AppConfigFeatureFlagsProfile
+      ConfigurationVersion: !Ref AppConfigInitialFlagsVersion
+      DeploymentStrategyId: AppConfig.AllAtOnce
+
+  # Any function can read the feature-flags config. Attached per-function
+  # via `- !Ref AppConfigReadPolicy` in each Policies block.
+  AppConfigReadPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Read feature flags from the hospitality-hq AppConfig application
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - appconfig:StartConfigurationSession
+              - appconfig:GetLatestConfiguration
+            Resource:
+              - !Sub arn:aws:appconfig:${AWS::Region}:${AWS::AccountId}:application/${AppConfigApplication}
+              - !Sub arn:aws:appconfig:${AWS::Region}:${AWS::AccountId}:application/${AppConfigApplication}/environment/${AppConfigEnvironment}
+              - !Sub arn:aws:appconfig:${AWS::Region}:${AWS::AccountId}:application/${AppConfigApplication}/configurationprofile/${AppConfigFeatureFlagsProfile}
 
 Outputs:
   WebhookApiUrl:
