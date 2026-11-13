@@ -99,6 +99,11 @@ TASKS_CHANNEL_ID = os.environ.get("TASKS_CHANNEL_ID", "")
 # after a smoke test. Every stay-channel entry point guards on this.
 STAY_CHANNELS_ENABLED = os.environ.get("STAY_CHANNELS_ENABLED", "false").lower() == "true"
 
+# Secondary flag for auto-drafting a guest reply when an in-stay guest
+# messages us. AND'd with STAY_CHANNELS_ENABLED. Default off so we can
+# deploy the plumbing dark and flip it on after one clean smoke test.
+STAY_AUTO_DRAFT_ENABLED = os.environ.get("STAY_AUTO_DRAFT_ENABLED", "false").lower() == "true"
+
 # DynamoDB table mapping reservation_uuid ↔ Slack channel_id (plus a small
 # bag of operational attributes). Journal body itself lives in S3.
 STAY_CHANNELS_TABLE = os.environ.get("STAY_CHANNELS_TABLE", "hospitality-hq-stay-channels")

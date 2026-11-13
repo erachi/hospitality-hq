@@ -1,6 +1,6 @@
 """Tests for stay_provisioner — channel-name slug, provisioner, mirror."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from moto import mock_aws
@@ -404,12 +404,13 @@ def test_mirror_happy_path(flag_on, stay_channels_table, stay_journal_bucket):
         "created_at": "2026-11-23T16:00:00Z",
     }
 
-    posted_ts = mirror_message(
-        reservation_uuid="res-abc",
-        message=msg,
-        slack_client=slack,
-        guest_name="Jane Smith",
-    )
+    with patch("stay_agent.handle_mirrored_guest_message") as mock_dispatch:
+        posted_ts = mirror_message(
+            reservation_uuid="res-abc",
+            message=msg,
+            slack_client=slack,
+            guest_name="Jane Smith",
+        )
 
     assert posted_ts == "1700000000.100"
     slack.post_message.assert_called_once()
@@ -422,6 +423,88 @@ def test_mirror_happy_path(flag_on, stay_channels_table, stay_journal_bucket):
     # High-water mark advanced.
     row = StayChannels().get_by_reservation("res-abc")
     assert row["last_mirrored_hospitable_ts"] == "2026-11-23T16:00:00Z"
+
+    # Guest mirror fired the auto-draft dispatcher with the fresh row.
+    mock_dispatch.assert_called_once()
+    dispatch_kwargs = mock_dispatch.call_args.kwargs
+    assert dispatch_kwargs["reservation_uuid"] == "res-abc"
+    assert dispatch_kwargs["message"] is msg
+    assert dispatch_kwargs["stay_row"]["channel_id"] == "C_STAY_1"
+
+
+@mock_aws
+def test_mirror_host_message_does_not_trigger_auto_draft(
+    flag_on, stay_channels_table, stay_journal_bucket
+):
+    """Host-sent mirrors (e.g. VJ replied in Hospitable directly) must
+    not auto-draft — there's nothing to reply to."""
+    _seed_mapping()
+    slack = _make_slack_client()
+    msg = {
+        "id": "m-host",
+        "body": "See you at 3.",
+        "sender_type": "host",
+        "created_at": "2026-11-23T16:00:00Z",
+    }
+    with patch("stay_agent.handle_mirrored_guest_message") as mock_dispatch:
+        mirror_message(
+            reservation_uuid="res-abc",
+            message=msg,
+            slack_client=slack,
+        )
+    mock_dispatch.assert_not_called()
+
+
+@mock_aws
+def test_mirror_dedup_skips_auto_draft(
+    flag_on, stay_channels_table, stay_journal_bucket
+):
+    """A dedup'd mirror returns before posting → dispatcher must not fire."""
+    _seed_mapping()
+    StayChannels().update_last_mirrored("res-abc", "2026-11-23T16:00:00Z")
+    slack = _make_slack_client()
+    msg = {
+        "id": "m-dupe",
+        "body": "already mirrored",
+        "sender_type": "guest",
+        "created_at": "2026-11-23T16:00:00Z",
+    }
+    with patch("stay_agent.handle_mirrored_guest_message") as mock_dispatch:
+        result = mirror_message(
+            reservation_uuid="res-abc",
+            message=msg,
+            slack_client=slack,
+        )
+    assert result is None
+    mock_dispatch.assert_not_called()
+
+
+@mock_aws
+def test_mirror_auto_draft_failure_does_not_fail_mirror(
+    flag_on, stay_channels_table, stay_journal_bucket
+):
+    """If the auto-draft handler blows up, the mirror still succeeds —
+    the guest message is journaled and posted regardless."""
+    _seed_mapping()
+    slack = _make_slack_client()
+    msg = {
+        "id": "m-boom",
+        "body": "fire alarm went off",
+        "sender_type": "guest",
+        "created_at": "2026-11-23T16:00:00Z",
+    }
+    with patch(
+        "stay_agent.handle_mirrored_guest_message",
+        side_effect=RuntimeError("Claude timeout"),
+    ):
+        posted_ts = mirror_message(
+            reservation_uuid="res-abc",
+            message=msg,
+            slack_client=slack,
+        )
+    assert posted_ts == "1700000000.100"
+    # Journal still grew.
+    assert len(StayStore().get("res-abc").entries) == 1
 
 
 @mock_aws

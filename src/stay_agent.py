@@ -1,11 +1,20 @@
 """Ambient Claude agent for per-stay Slack channels.
 
-Every top-level message in a stay channel — whether it's a mirrored
-Hospitable guest message or a human asking a question — triggers the
-agent. The agent reads the full stay journal plus the property KB and
-thread logs, chats multi-turn with VJ and Maggie, and optionally
-proposes a guest-visible draft wrapped in `<<DRAFT>>...<<END_DRAFT>>`
-tags that we turn into a Block Kit card with Send/Discard buttons.
+Two entry points, same underlying turn:
+
+- `handle_channel_message` — a human (VJ or Maggie) just posted a
+  top-level message in the stay channel. Journal their turn, then run
+  the agent against the combined journal.
+- `handle_mirrored_guest_message` — the mirror just appended a fresh
+  guest-source message. The guest turn is already journaled. Run the
+  agent silently (no apology/placeholder posts), gated by both the
+  STAY_CHANNELS_ENABLED and STAY_AUTO_DRAFT_ENABLED flags and the
+  in-stay window predicate so pre-booking chatter doesn't auto-draft.
+
+Both paths read the full stay journal plus the property KB and thread
+logs, and optionally propose a guest-visible draft wrapped in
+`<<DRAFT>>...<<END_DRAFT>>` tags that we turn into a Block Kit card
+with Send/Discard buttons.
 
 Hard invariants:
 - The agent NEVER sends a message to a guest on its own. Only a human
@@ -30,7 +39,12 @@ from typing import Optional
 import anthropic
 
 from classifier import _get_client as _get_anthropic_client
-from config import DRAFT_MODEL, get_slack_bot_token
+from config import (
+    DRAFT_MODEL,
+    STAY_AUTO_DRAFT_ENABLED,
+    STAY_CHANNELS_ENABLED,
+    get_slack_bot_token,
+)
 from hospitable_client import HospitableClient
 from knowledge_base_loader import load_kb, format_for_claude as format_kb
 from slack_notifier import StayChannelSlackClient
@@ -44,6 +58,7 @@ from stay_models import (
     StayEntry,
 )
 from stay_store import StayStore
+from stay_window import is_in_stay_window
 from thread_logs import ThreadLogs, format_for_claude as format_logs
 
 logger = logging.getLogger(__name__)
@@ -119,9 +134,9 @@ def _handle_channel_message(
     user_id = inner_event.get("user", "unknown")
     slack_ts = inner_event.get("ts", "")
 
-    # ── 1. Journal first: persist the human turn BEFORE calling Claude.
-    #       Even if Claude or Slack fails, the record of what VJ or
-    #       Maggie said stays in S3.
+    # Journal first: persist the human turn BEFORE calling Claude.
+    # Even if Claude or Slack fails, the record of what VJ or Maggie
+    # said stays in S3.
     user_entry = StayEntry.new(
         source=SOURCE_SLACK_USER,
         author=user_id,
@@ -140,29 +155,124 @@ def _handle_channel_message(
         # still produce something useful from the fresh text + prior
         # journal state.
 
-    # ── 2. Load reservation context from durable sources only.
+    _run_agent_turn(
+        reservation_uuid=reservation_uuid,
+        channel_id=channel_id,
+        stay_row=stay_row,
+        trigger_text=text,
+        trigger_user_id=user_id,
+        slack_client=slack_client,
+        stay_store=stay_store,
+        auto_trigger=False,
+    )
+
+
+# ─── Auto-trigger: in-stay guest message → draft ──────────────────────
+
+
+def handle_mirrored_guest_message(
+    reservation_uuid: str,
+    stay_row: dict,
+    message: dict,
+    *,
+    slack_client: Optional[StayChannelSlackClient] = None,
+    stay_store: Optional[StayStore] = None,
+) -> None:
+    """Auto-draft entry point.
+
+    Called by `stay_provisioner.mirror_message` right after it
+    successfully mirrors a fresh guest-source Hospitable message. The
+    mirror has already journaled the guest turn, so this path DOES NOT
+    journal again — it just reads the (now-updated) journal, asks the
+    hospitality-expert agent for a draft, and posts the draft card.
+
+    Silent on failure: no apology or placeholder posts. This path
+    fires unprompted, so a noise message in the channel every time
+    Claude 429s or returns no draft would be worse than nothing. The
+    humans can always reply in the channel to trigger the normal path.
+    """
+    if not (STAY_CHANNELS_ENABLED and STAY_AUTO_DRAFT_ENABLED):
+        return
+    sender_type = (message or {}).get("sender_type", "").lower()
+    if sender_type != "guest":
+        return
+    if not is_in_stay_window(
+        stay_row.get("check_in", ""), stay_row.get("check_out", "")
+    ):
+        logger.info(
+            "stay_agent: skipping auto-draft for %s — outside in-stay window",
+            reservation_uuid,
+        )
+        return
+
+    channel_id = stay_row.get("channel_id", "")
+    if not reservation_uuid or not channel_id:
+        logger.warning(
+            "stay_agent: auto-draft skipped — malformed stay_row: %s", stay_row
+        )
+        return
+
+    try:
+        _run_agent_turn(
+            reservation_uuid=reservation_uuid,
+            channel_id=channel_id,
+            stay_row=stay_row,
+            trigger_text=(message.get("body") or "").strip(),
+            trigger_user_id="guest",
+            slack_client=slack_client or StayChannelSlackClient(),
+            stay_store=stay_store or StayStore(),
+            auto_trigger=True,
+        )
+    except Exception as e:
+        logger.exception(
+            "stay_agent: auto-draft turn failed for %s: %s", reservation_uuid, e
+        )
+
+
+def _run_agent_turn(
+    *,
+    reservation_uuid: str,
+    channel_id: str,
+    stay_row: dict,
+    trigger_text: str,
+    trigger_user_id: str,
+    slack_client: StayChannelSlackClient,
+    stay_store: StayStore,
+    auto_trigger: bool,
+) -> None:
+    """Shared body: build context, call Claude, journal, post.
+
+    Both `_handle_channel_message` (human) and
+    `handle_mirrored_guest_message` (auto) call through here. The only
+    behavioral difference is what we do when Claude errors or returns
+    no draft — see the branches tagged `auto_trigger`.
+    """
+    # Load reservation context from durable sources only.
     journal = stay_store.get(reservation_uuid)
     reservation_context = _load_reservation_context(stay_row)
     kb_text = _load_kb_text(stay_row.get("property_id", ""))
     thread_logs_text = _load_thread_logs_text(reservation_uuid)
 
-    # ── 3. Build the multi-turn messages for Claude.
     messages = _build_turns(
         journal=journal,
-        trigger_text=text,
-        trigger_user_id=user_id,
+        trigger_text=trigger_text,
+        trigger_user_id=trigger_user_id,
     )
     system_prompt = _build_system_prompt(
         reservation_context=reservation_context,
         kb_text=kb_text,
         thread_logs_text=thread_logs_text,
+        auto_trigger=auto_trigger,
     )
 
-    # ── 4. Call Claude. Swallow errors with a user-facing apology.
     try:
         response_text = _call_claude(system_prompt, messages)
     except Exception as e:
         logger.exception("stay_agent: Claude call failed: %s", e)
+        if auto_trigger:
+            # Silent on auto-trigger: no human is waiting on a reply
+            # from the bot, so an apology post would be channel noise.
+            return
         try:
             slack_client.post_message(
                 channel_id,
@@ -172,8 +282,6 @@ def _handle_channel_message(
             pass
         return
 
-    # ── 5. Split chat from draft and persist the agent turn BEFORE
-    #       posting to Slack.
     chat_text, draft_text = _extract_draft(response_text)
     agent_entry = StayEntry.new(
         source=SOURCE_SLACK_AGENT,
@@ -183,6 +291,7 @@ def _handle_channel_message(
             "has_draft": bool(draft_text),
             "draft_text": draft_text or "",
             "model": DRAFT_MODEL,
+            "auto_trigger": auto_trigger,
         },
     )
     try:
@@ -194,21 +303,31 @@ def _handle_channel_message(
             e,
         )
 
-    # ── 6. Post chat to Slack. The chat portion can be empty if the
-    #       model jumped straight to a draft — surface a minimal
-    #       preamble so the draft card doesn't appear orphaned.
-    chat_to_post = chat_text or (
-        "Here's a draft you can review:" if draft_text else ":speech_balloon: (no reply)"
-    )
-    try:
-        slack_client.post_message(channel_id, text=chat_to_post)
-    except Exception as e:
-        logger.warning("stay_agent: chat post failed: %s", e)
+    # Post chat to Slack. The chat portion can be empty if the model
+    # jumped straight to a draft — surface a minimal preamble so the
+    # draft card doesn't appear orphaned. On auto-trigger, stay silent
+    # when the model produced nothing of substance.
+    if auto_trigger:
+        if draft_text and chat_text:
+            try:
+                slack_client.post_message(channel_id, text=chat_text)
+            except Exception as e:
+                logger.warning("stay_agent: chat post failed: %s", e)
+        # No draft and no chat → nothing to say. No draft but chat →
+        # the model is "thinking out loud" without actionable output;
+        # also skip to avoid cluttering the channel ambient-bot-style.
+    else:
+        chat_to_post = chat_text or (
+            "Here's a draft you can review:" if draft_text else ":speech_balloon: (no reply)"
+        )
+        try:
+            slack_client.post_message(channel_id, text=chat_to_post)
+        except Exception as e:
+            logger.warning("stay_agent: chat post failed: %s", e)
 
-    # ── 7. Draft card (optional). The draft text is embedded on each
-    #       button so the send/discard handlers don't need to re-read
-    #       the journal to recover it — Slack action_ids + values are
-    #       the durable carry-over.
+    # Draft card (optional). The draft text is embedded on each button
+    # so the send/discard handlers don't need to re-read the journal to
+    # recover it — Slack action_ids + values are the durable carry-over.
     if draft_text:
         try:
             _post_draft_card(
@@ -401,11 +520,19 @@ Output structure. All tags are plain text, each on its own line. Text OUTSIDE ta
 """
 
 
+_AUTO_TRIGGER_HINT = (
+    "This turn was auto-triggered by a new inbound guest message — no human "
+    "has weighed in yet. If the guest's latest turn warrants a reply, produce "
+    "a <<DRAFT>>; do not ask VJ or Maggie first."
+)
+
+
 def _build_system_prompt(
     *,
     reservation_context: str,
     kb_text: str,
     thread_logs_text: str,
+    auto_trigger: bool = False,
 ) -> str:
     """Assemble the system prompt. Reservation summary + KB + thread
     logs are static per-turn; the live conversation goes through the
@@ -417,6 +544,8 @@ def _build_system_prompt(
         parts.append("─── Property knowledge base (authoritative) ───\n" + kb_text[:6000])
     if thread_logs_text:
         parts.append("─── Prior internal notes/issues/resolutions ───\n" + thread_logs_text[:2000])
+    if auto_trigger:
+        parts.append(_AUTO_TRIGGER_HINT)
     return "\n\n".join(parts)
 
 

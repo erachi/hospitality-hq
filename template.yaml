@@ -45,6 +45,11 @@ Parameters:
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: Feature flag for per-stay Slack channels + ambient agent
+  StayAutoDraftEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Auto-draft a reply in the stay channel when an in-stay guest messages
   StayChannelInviteUserIds:
     Type: String
     Default: ""
@@ -91,6 +96,7 @@ Resources:
           THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
           THREAD_LOGS_TABLE: !Ref ThreadLogsTable
           STAY_CHANNELS_ENABLED: !Ref StayChannelsEnabled
+          STAY_AUTO_DRAFT_ENABLED: !Ref StayAutoDraftEnabled
           STAY_CHANNELS_TABLE: !Ref StayChannelsTable
           STAY_JOURNAL_BUCKET: !Ref TasksBucketName
           STAY_JOURNAL_PREFIX: "stays/"
@@ -159,6 +165,7 @@ Resources:
           THREAD_MAPPING_TABLE: !Ref ThreadMappingTable
           THREAD_LOGS_TABLE: !Ref ThreadLogsTable
           STAY_CHANNELS_ENABLED: !Ref StayChannelsEnabled
+          STAY_AUTO_DRAFT_ENABLED: !Ref StayAutoDraftEnabled
           STAY_CHANNELS_TABLE: !Ref StayChannelsTable
           STAY_JOURNAL_BUCKET: !Ref TasksBucketName
           STAY_JOURNAL_PREFIX: "stays/"
