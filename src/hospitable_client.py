@@ -1,8 +1,15 @@
 """Client for the Hospitable API."""
 
-import requests
 from datetime import datetime, timedelta
-from config import get_hospitable_token, HOSPITABLE_BASE_URL, RESERVATION_LOOKBACK_DAYS, RESERVATION_LOOKAHEAD_DAYS
+
+import requests
+
+from config import (
+    HOSPITABLE_BASE_URL,
+    RESERVATION_LOOKAHEAD_DAYS,
+    RESERVATION_LOOKBACK_DAYS,
+    get_hospitable_token,
+)
 
 
 class HospitableClient:
@@ -94,7 +101,9 @@ class HospitableClient:
                 all_reservations.extend(reservations)
 
                 # Check if there are more pages
-                if data.get("meta", {}).get("current_page", 1) >= data.get("meta", {}).get("last_page", 1):
+                if data.get("meta", {}).get("current_page", 1) >= data.get("meta", {}).get(
+                    "last_page", 1
+                ):
                     break
                 page += 1
 
@@ -128,7 +137,9 @@ class HospitableClient:
                     inq["property_id"] = prop_uuid
                 all_inquiries.extend(inquiries)
 
-                if data.get("meta", {}).get("current_page", 1) >= data.get("meta", {}).get("last_page", 1):
+                if data.get("meta", {}).get("current_page", 1) >= data.get("meta", {}).get(
+                    "last_page", 1
+                ):
                     break
                 page += 1
 

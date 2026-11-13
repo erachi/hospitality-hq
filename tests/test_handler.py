@@ -1,9 +1,11 @@
 """Tests for the main Lambda handler orchestration logic."""
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+
 from moto import mock_aws
-from handler import lambda_handler, build_conversation_summary, load_property_context
+
+from handler import build_conversation_summary, lambda_handler, load_property_context
 
 
 @mock_aws
@@ -61,6 +63,7 @@ def test_handler_processes_new_guest_messages(
     assert result["statusCode"] == 200
 
     import json
+
     body = json.loads(result["body"])
     assert body["reservations_checked"] == 1
     assert body["new_messages_found"] == 1
@@ -120,6 +123,7 @@ def test_handler_skips_host_messages(mock_hospitable, dynamodb_table):
     result = lambda_handler({}, None)
 
     import json
+
     body = json.loads(result["body"])
     assert body["new_messages_found"] == 0
     assert body["alerts_posted"] == 0
@@ -135,8 +139,14 @@ def test_handler_skips_host_messages(mock_hospitable, dynamodb_table):
 @patch("handler.summarize_conversation", return_value="")
 @patch("handler.post_guest_alert")
 def test_poller_mirrors_host_messages_in_conversation(
-    mock_slack, mock_summary, mock_draft, mock_classify,
-    mock_hospitable, mock_mirror, mock_stay_slack, dynamodb_table,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_mirror,
+    mock_stay_slack,
+    dynamodb_table,
 ):
     """A [guest, host] pair must mirror both messages into the stay journal
     even when the guest message is marked ANSWERED (no alert posted). This is
@@ -178,6 +188,7 @@ def test_poller_mirrors_host_messages_in_conversation(
     result = lambda_handler({}, None)
 
     import json as _json
+
     body = _json.loads(result["body"])
     # Guest is ANSWERED — no alert posted.
     assert body["alerts_posted"] == 0
@@ -186,8 +197,7 @@ def test_poller_mirrors_host_messages_in_conversation(
     # But BOTH messages mirror into the stay journal.
     assert mock_mirror.call_count == 2
     sender_types = [
-        call.kwargs["message"].get("sender_type")
-        for call in mock_mirror.call_args_list
+        call.kwargs["message"].get("sender_type") for call in mock_mirror.call_args_list
     ]
     assert sender_types == ["guest", "host"]
 
@@ -199,7 +209,11 @@ def test_poller_mirrors_host_messages_in_conversation(
 @patch("handler.HospitableClient")
 @patch("handler.post_guest_alert")
 def test_poller_mirrors_host_only_conversation(
-    mock_slack, mock_hospitable, mock_mirror, mock_stay_slack, dynamodb_table,
+    mock_slack,
+    mock_hospitable,
+    mock_mirror,
+    mock_stay_slack,
+    dynamodb_table,
 ):
     """Simulates a host-only message in the API response (e.g. webhook outage
     where the guest message was already mirrored and only the host reply
@@ -274,13 +288,18 @@ def test_handler_does_not_reprocess_messages(
     mock_client.get_reservation_messages.return_value = messages
     mock_client.get_property.return_value = {"description": "desc"}
     mock_client.get_property_knowledge_hub.return_value = {"topics": []}
-    mock_classify.return_value = {"category": "URGENT_MAINTENANCE", "urgency": "HIGH", "summary": "AC broken"}
+    mock_classify.return_value = {
+        "category": "URGENT_MAINTENANCE",
+        "urgency": "HIGH",
+        "summary": "AC broken",
+    }
     mock_draft.return_value = "Draft response"
     mock_slack.return_value = {"ok": True}
 
     # First run — should process
     result1 = lambda_handler({}, None)
     import json
+
     body1 = json.loads(result1["body"])
     assert body1["alerts_posted"] == 1
 
@@ -391,6 +410,7 @@ def test_handler_handles_null_body_without_crashing(
 
     # Must complete without exceptions
     import json as _json
+
     result = lambda_handler({}, None)
     body = _json.loads(result["body"])
     assert body["errors"] == []
@@ -448,6 +468,7 @@ def test_poller_skips_message_with_later_host_reply(
     result = lambda_handler({}, None)
 
     import json as _json
+
     body = _json.loads(result["body"])
     assert body["new_messages_found"] == 0
     assert body["alerts_posted"] == 0
@@ -498,12 +519,17 @@ def test_poller_still_alerts_when_only_automated_host_reply(
     ]
     mock_client.get_property.return_value = {"description": "desc"}
     mock_client.get_property_knowledge_hub.return_value = {"topics": []}
-    mock_classify.return_value = {"category": "URGENT_MAINTENANCE", "urgency": "HIGH", "summary": "AC"}
+    mock_classify.return_value = {
+        "category": "URGENT_MAINTENANCE",
+        "urgency": "HIGH",
+        "summary": "AC",
+    }
     mock_draft.return_value = "Draft"
     mock_slack.return_value = {"ok": True}
 
     result = lambda_handler({}, None)
     import json as _json
+
     body = _json.loads(result["body"])
     assert body["alerts_posted"] == 1
 
@@ -515,14 +541,19 @@ def test_poller_still_alerts_when_only_automated_host_reply(
 @patch("handler.summarize_conversation", return_value="")
 @patch("handler.post_guest_alert")
 def test_poller_ignores_messages_older_than_lookback_window(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable,
-    dynamodb_table, monkeypatch,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    dynamodb_table,
+    monkeypatch,
 ):
     """The lookback guard prevents a flood of alerts on the first poll after
     deploy. A message older than POLLER_LOOKBACK_HOURS is left alone."""
     monkeypatch.setenv("POLLER_LOOKBACK_HOURS", "6")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     old_ts = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     mock_client = MagicMock()
@@ -553,6 +584,7 @@ def test_poller_ignores_messages_older_than_lookback_window(
 
     result = lambda_handler({}, None)
     import json as _json
+
     body = _json.loads(result["body"])
     assert body["new_messages_found"] == 0
     assert body["alerts_posted"] == 0
@@ -566,14 +598,19 @@ def test_poller_ignores_messages_older_than_lookback_window(
 @patch("handler.summarize_conversation", return_value="")
 @patch("handler.post_guest_alert")
 def test_poller_alerts_recent_messages_within_window(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable,
-    dynamodb_table, monkeypatch,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    dynamodb_table,
+    monkeypatch,
 ):
     """Companion to the lookback test: a message inside the window still gets
     alerted — proves the gate isn't dropping everything."""
     monkeypatch.setenv("POLLER_LOOKBACK_HOURS", "6")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent_ts = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     mock_client = MagicMock()
@@ -601,12 +638,17 @@ def test_poller_alerts_recent_messages_within_window(
     ]
     mock_client.get_property.return_value = {"description": "desc"}
     mock_client.get_property_knowledge_hub.return_value = {"topics": []}
-    mock_classify.return_value = {"category": "URGENT_MAINTENANCE", "urgency": "HIGH", "summary": "AC"}
+    mock_classify.return_value = {
+        "category": "URGENT_MAINTENANCE",
+        "urgency": "HIGH",
+        "summary": "AC",
+    }
     mock_draft.return_value = "Draft"
     mock_slack.return_value = {"ok": True}
 
     result = lambda_handler({}, None)
     import json as _json
+
     body = _json.loads(result["body"])
     assert body["alerts_posted"] == 1
 

@@ -1,7 +1,7 @@
 """DynamoDB-backed state tracker for processed messages."""
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import boto3
 
@@ -22,9 +22,9 @@ def _normalize_iso(ts: str) -> str:
             s = s[:-1] + "+00:00"
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         else:
-            dt = dt.astimezone(timezone.utc)
+            dt = dt.astimezone(UTC)
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except (ValueError, TypeError):
         return ts
@@ -88,7 +88,7 @@ class StateTracker:
                 "classification": classification,
                 "urgency": urgency,
                 "property_name": property_name,
-                "processed_at": datetime.now(timezone.utc).isoformat(),
+                "processed_at": datetime.now(UTC).isoformat(),
             }
         )
 

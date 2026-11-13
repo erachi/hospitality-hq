@@ -2,9 +2,9 @@
 
 import json
 import os
+from unittest.mock import patch
 
 import responses
-from unittest.mock import patch
 
 os.environ["OPS_SLACK_CHANNEL_ID"] = "C_TEST_OPS_CHANNEL"
 

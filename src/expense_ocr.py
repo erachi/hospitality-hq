@@ -10,13 +10,12 @@ latency on a second round-trip.
 
 import base64
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from anthropic import Anthropic
 
 from config import get_anthropic_key
 from expense_categories import valid_category_ids
-
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +72,14 @@ def _tool_schema() -> dict:
                         "interpret the year as 20xx."
                     ),
                 },
-                "subtotal":       {"type": ["string", "null"]},
-                "tax":            {"type": ["string", "null"]},
-                "tip":            {"type": ["string", "null"]},
-                "total":          {"type": "string", "description": "Grand total as printed. Decimal, no currency symbol."},
-                "currency":       {"type": "string", "description": "ISO code, default USD."},
+                "subtotal": {"type": ["string", "null"]},
+                "tax": {"type": ["string", "null"]},
+                "tip": {"type": ["string", "null"]},
+                "total": {
+                    "type": "string",
+                    "description": "Grand total as printed. Decimal, no currency symbol.",
+                },
+                "currency": {"type": "string", "description": "ISO code, default USD."},
                 "payment_method": {
                     "type": ["string", "null"],
                     "description": "e.g. 'Visa ****1234' or 'CASH'.",
@@ -88,8 +90,8 @@ def _tool_schema() -> dict:
                         "type": "object",
                         "properties": {
                             "description": {"type": "string"},
-                            "qty":         {"type": ["number", "null"]},
-                            "amount":      {"type": "string"},
+                            "qty": {"type": ["number", "null"]},
+                            "amount": {"type": "string"},
                         },
                     },
                 },
@@ -98,7 +100,7 @@ def _tool_schema() -> dict:
                     "enum": sorted(valid_category_ids()),
                     "description": "Best-fit Schedule E category id.",
                 },
-                "category_confidence":   {"type": "string", "enum": ["high", "medium", "low"]},
+                "category_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
                 "extraction_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
                 "needs_review_reason": {
                     "type": ["string", "null"],
@@ -155,7 +157,7 @@ def extract_receipt(image_bytes: bytes, media_type: str) -> dict:
     return payload
 
 
-def _first_tool_input(response: Any) -> Optional[dict]:
+def _first_tool_input(response: Any) -> dict | None:
     """Pull the first tool_use block's input from a messages response."""
     for block in getattr(response, "content", []) or []:
         if getattr(block, "type", None) == "tool_use":

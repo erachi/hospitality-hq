@@ -2,8 +2,9 @@
 
 import os
 import sys
-import pytest
+
 import boto3
+import pytest
 from moto import mock_aws
 
 # Add src to path so tests can import modules
@@ -274,9 +275,7 @@ def stay_channels_table():
             GlobalSecondaryIndexes=[
                 {
                     "IndexName": "by_channel",
-                    "KeySchema": [
-                        {"AttributeName": "channel_id", "KeyType": "HASH"}
-                    ],
+                    "KeySchema": [{"AttributeName": "channel_id", "KeyType": "HASH"}],
                     "Projection": {"ProjectionType": "ALL"},
                 }
             ],
@@ -321,5 +320,3 @@ def sample_classification():
         "urgency": "HIGH",
         "summary": "AC not working, guest reports high temperature",
     }
-
-

@@ -12,10 +12,9 @@ channel is a view layer and the journal is the record.
 """
 
 import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from typing import Any, Optional
-
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 # ─── Status ──────────────────────────────────────────────────────────────
 
@@ -81,8 +80,8 @@ class StayEntry:
         source: str,
         author: str,
         body: str,
-        ts: Optional[str] = None,
-        metadata: Optional[dict] = None,
+        ts: str | None = None,
+        metadata: dict | None = None,
     ) -> "StayEntry":
         return cls(
             id=str(uuid.uuid4()),
@@ -114,10 +113,10 @@ class StayJournal:
     created_at: str
     updated_at: str
     status: str = STATUS_ACTIVE
-    channel_id: Optional[str] = None
-    channel_name: Optional[str] = None
-    archived_at: Optional[str] = None
-    last_mirrored_hospitable_ts: Optional[str] = None
+    channel_id: str | None = None
+    channel_name: str | None = None
+    archived_at: str | None = None
+    last_mirrored_hospitable_ts: str | None = None
     reservation_snapshot: dict = field(default_factory=dict)
     entries: list[StayEntry] = field(default_factory=list)
 
@@ -156,7 +155,7 @@ class StayJournal:
         guest_name: str,
         check_in: str,
         check_out: str,
-        reservation_snapshot: Optional[dict] = None,
+        reservation_snapshot: dict | None = None,
     ) -> "StayJournal":
         now = _now_iso()
         return cls(
@@ -192,4 +191,4 @@ class StayJournal:
 
 def _now_iso() -> str:
     """Current UTC time as an ISO-8601 string with trailing Z."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

@@ -50,9 +50,7 @@ def _seed_stay(reservation_uuid: str, *, check_out: str, channel_id: str) -> Non
 
 
 @mock_aws
-def test_archiver_feature_flag_off_is_noop(
-    flag_off, stay_channels_table, stay_journal_bucket
-):
+def test_archiver_feature_flag_off_is_noop(flag_off, stay_channels_table, stay_journal_bucket):
     _seed_stay("res-old", check_out="2026-01-01", channel_id="C_OLD")
     result = lambda_handler({}, None)
     assert result["statusCode"] == 200
@@ -72,11 +70,10 @@ def test_archiver_archives_stays_past_grace_window(
     _seed_stay("res-old", check_out=long_ago, channel_id="C_OLD")
     _seed_stay("res-recent", check_out=yesterday, channel_id="C_RECENT")
 
-    with patch(
-        "stay_archiver._slack_archive", return_value={"ok": True}
-    ) as mock_archive, patch(
-        "stay_archiver.StayChannelSlackClient"
-    ) as mock_slack_cls:
+    with (
+        patch("stay_archiver._slack_archive", return_value={"ok": True}) as mock_archive,
+        patch("stay_archiver.StayChannelSlackClient") as mock_slack_cls,
+    ):
         mock_slack_cls.return_value.post_message.return_value = {"ok": True}
         result = lambda_handler({}, None)
 
@@ -113,10 +110,13 @@ def test_archiver_treats_already_archived_as_success(
     long_ago = (date.today() - timedelta(days=30)).isoformat()
     _seed_stay("res-again", check_out=long_ago, channel_id="C_AGAIN")
 
-    with patch(
-        "stay_archiver._slack_archive",
-        return_value={"ok": False, "error": "already_archived"},
-    ), patch("stay_archiver.StayChannelSlackClient") as mock_slack_cls:
+    with (
+        patch(
+            "stay_archiver._slack_archive",
+            return_value={"ok": False, "error": "already_archived"},
+        ),
+        patch("stay_archiver.StayChannelSlackClient") as mock_slack_cls,
+    ):
         mock_slack_cls.return_value.post_message.return_value = {"ok": True}
         lambda_handler({}, None)
 
@@ -125,9 +125,7 @@ def test_archiver_treats_already_archived_as_success(
 
 
 @mock_aws
-def test_archiver_records_errors_and_continues(
-    flag_on, stay_channels_table, stay_journal_bucket
-):
+def test_archiver_records_errors_and_continues(flag_on, stay_channels_table, stay_journal_bucket):
     long_ago = (date.today() - timedelta(days=30)).isoformat()
     _seed_stay("res-ok", check_out=long_ago, channel_id="C_OK")
     _seed_stay("res-bad", check_out=long_ago, channel_id="C_BAD")
@@ -137,9 +135,10 @@ def test_archiver_records_errors_and_continues(
             return {"ok": False, "error": "channel_not_found"}
         return {"ok": True}
 
-    with patch(
-        "stay_archiver._slack_archive", side_effect=archive_side_effect
-    ), patch("stay_archiver.StayChannelSlackClient") as mock_slack_cls:
+    with (
+        patch("stay_archiver._slack_archive", side_effect=archive_side_effect),
+        patch("stay_archiver.StayChannelSlackClient") as mock_slack_cls,
+    ):
         mock_slack_cls.return_value.post_message.return_value = {"ok": True}
         result = lambda_handler({}, None)
 

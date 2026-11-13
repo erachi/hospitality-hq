@@ -5,9 +5,9 @@ Non-secret config remains in environment variables.
 """
 
 import os
-import boto3
 from functools import lru_cache
 
+import boto3
 
 # SSM parameter path prefix
 SSM_PREFIX = os.environ.get("SSM_PREFIX", "/hospitality-hq")
@@ -40,21 +40,26 @@ def _get_secret(param_name: str) -> str:
 
 # --- Secrets (fetched from SSM Parameter Store) ---
 
+
 @lru_cache(maxsize=1)
 def get_hospitable_token() -> str:
     return _get_secret("hospitable-api-token")
+
 
 @lru_cache(maxsize=1)
 def get_anthropic_key() -> str:
     return _get_secret("anthropic-api-key")
 
+
 @lru_cache(maxsize=1)
 def get_slack_bot_token() -> str:
     return _get_secret("slack-bot-token")
 
+
 @lru_cache(maxsize=1)
 def get_webhook_secret() -> str:
     return _get_secret("webhook-signing-secret")
+
 
 @lru_cache(maxsize=1)
 def get_slack_signing_secret() -> str:

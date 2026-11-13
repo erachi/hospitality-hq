@@ -5,9 +5,9 @@ from decimal import Decimal
 import pytest
 
 from expense_models import (
-    Allocation,
     CONFIDENCE_LOW,
     EXPENSE_ID_RE,
+    Allocation,
     Expense,
     money_str,
     now_iso,
@@ -62,9 +62,7 @@ def test_expense_roundtrip_through_dict():
         category_id="repairs",
         property_id="3278e9cb-9239-487f-aa51-cbfbaf4b7570",
         notes="new garbage disposal",
-        allocations=[
-            Allocation.single("3278e9cb-9239-487f-aa51-cbfbaf4b7570", Decimal("311.97"))
-        ],
+        allocations=[Allocation.single("3278e9cb-9239-487f-aa51-cbfbaf4b7570", Decimal("311.97"))],
     )
     data = expense.to_dict()
     rehydrated = Expense.from_dict(data)

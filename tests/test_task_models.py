@@ -1,14 +1,14 @@
 """Tests for task_models."""
 
 from task_models import (
-    Task,
-    Comment,
-    STATUS_OPEN,
-    STATUS_DONE,
-    PRIORITY_NORMAL,
-    PRIORITY_HIGH,
-    PROPERTY_BUSINESS,
     OPEN_STATUSES,
+    PRIORITY_HIGH,
+    PRIORITY_NORMAL,
+    PROPERTY_BUSINESS,
+    STATUS_DONE,
+    STATUS_OPEN,
+    Comment,
+    Task,
 )
 
 

@@ -35,8 +35,7 @@ import hmac
 import json
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Callable, Optional
+from datetime import UTC, datetime
 from urllib.parse import parse_qs
 
 from config import (
@@ -44,32 +43,29 @@ from config import (
     get_slack_signing_secret,
 )
 from task_models import (
-    Task,
-    Comment,
-    STATUS_OPEN,
-    STATUS_IN_PROGRESS,
-    STATUS_BLOCKED,
-    STATUS_DONE,
     PRIORITY_NORMAL,
     PROPERTY_BUSINESS,
-    OPEN_STATUSES,
+    STATUS_BLOCKED,
+    STATUS_DONE,
+    STATUS_IN_PROGRESS,
+    STATUS_OPEN,
+    Comment,
+    Task,
 )
-from task_store import TaskStore
 from task_slack_client import (
+    dm_user,
+    open_view,
     post_message,
     update_message,
-    post_ephemeral,
-    open_view,
-    dm_user,
 )
 from task_slack_ui import (
     CREATE_MODAL_CALLBACK_ID,
+    build_card_fallback_text,
     build_create_modal,
     build_task_card_blocks,
-    build_card_fallback_text,
     build_task_list_blocks,
 )
-
+from task_store import TaskStore
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -175,12 +171,12 @@ def _route_slash_command(form: dict) -> dict:
         return _ok_ephemeral(_HELP_TEXT)
 
     # Unknown — give the help text rather than silently swallowing.
-    return _ok_ephemeral(
-        f"Didn't recognize `{subcommand}`. Try:\n\n{_HELP_TEXT}"
-    )
+    return _ok_ephemeral(f"Didn't recognize `{subcommand}`. Try:\n\n{_HELP_TEXT}")
 
 
-def _open_create_modal(*, trigger_id: str, prefilled_title: str = "", prefilled_description: str = "") -> None:
+def _open_create_modal(
+    *, trigger_id: str, prefilled_title: str = "", prefilled_description: str = ""
+) -> None:
     store = TaskStore()
     view = build_create_modal(
         properties=store.load_properties(),
@@ -225,7 +221,9 @@ def _list_response(*, property_arg: str, channel_id: str, user_id: str) -> dict:
         tasks = store.list_all(include_closed=False)
         title = "📋 All open tasks"
     elif property_arg in ("business", "biz", "bw"):
-        tasks = [t for t in store.list_all(include_closed=False) if t.property_id == PROPERTY_BUSINESS]
+        tasks = [
+            t for t in store.list_all(include_closed=False) if t.property_id == PROPERTY_BUSINESS
+        ]
         title = "📋 Open business-wide tasks"
     else:
         # Match by slug or name prefix (case-insensitive)
@@ -252,7 +250,7 @@ def _list_response(*, property_arg: str, channel_id: str, user_id: str) -> dict:
     }
 
 
-def _match_property(arg: str, properties: list[dict]) -> Optional[dict]:
+def _match_property(arg: str, properties: list[dict]) -> dict | None:
     arg = arg.lower()
     for p in properties:
         slug = (p.get("slug") or "").lower()
@@ -329,8 +327,7 @@ def _handle_view_submission(payload: dict) -> dict:
                     "response_action": "errors",
                     "errors": {
                         "title_block": (
-                            "I don't have you in the users list yet — "
-                            "ask VJ to add your Slack id."
+                            "I don't have you in the users list yet — ask VJ to add your Slack id."
                         )
                     },
                 }
@@ -382,9 +379,7 @@ def _create_and_announce(task: Task, store: TaskStore) -> None:
     if assignee and assignee.get("slack_user_id") and assignee["id"] != task.created_by_id:
         creator = store.get_user(task.created_by_id) or {}
         creator_name = creator.get("display_name") or "someone"
-        preamble = (
-            f"{creator_name} assigned you a task: *{task.title}*"
-        )
+        preamble = f"{creator_name} assigned you a task: *{task.title}*"
         dm_user(assignee["slack_user_id"], preamble, blocks=blocks)
 
 
@@ -443,7 +438,9 @@ def _reopen_task(task: Task, store: TaskStore, actor_name: str) -> None:
     _thread_reply(task, f"↩️ Reopened by {actor_name}.")
 
 
-def _set_status(task: Task, store: TaskStore, new_status: str, actor_name: str, *, verb: str) -> None:
+def _set_status(
+    task: Task, store: TaskStore, new_status: str, actor_name: str, *, verb: str
+) -> None:
     task.status = new_status
     store.put(task)
     _refresh_card(task, store)
@@ -540,7 +537,7 @@ def is_task_view_submission(payload: dict) -> bool:
     return view.get("callback_id") == CREATE_MODAL_CALLBACK_ID
 
 
-def process_interaction(payload: dict) -> Optional[dict]:
+def process_interaction(payload: dict) -> dict | None:
     """Public entry point: handle a task card block_actions click or a
     task-modal view_submission.
 
@@ -646,7 +643,7 @@ def _verify_signature(raw_body: str, timestamp: str, signature: str) -> bool:
         return False
     if abs(time.time() - ts_int) > _MAX_TIMESTAMP_SKEW_SECONDS:
         return False
-    basestring = f"v0:{timestamp}:{raw_body}".encode("utf-8")
+    basestring = f"v0:{timestamp}:{raw_body}".encode()
     computed = "v0=" + hmac.new(secret.encode("utf-8"), basestring, hashlib.sha256).hexdigest()
     return hmac.compare_digest(computed, signature)
 
@@ -669,13 +666,7 @@ def _get_input(values: dict, block_id: str, action_id: str) -> str:
 
 
 def _get_select(values: dict, block_id: str, action_id: str) -> str:
-    return (
-        values.get(block_id, {})
-        .get(action_id, {})
-        .get("selected_option", {})
-        .get("value")
-        or ""
-    )
+    return values.get(block_id, {}).get(action_id, {}).get("selected_option", {}).get("value") or ""
 
 
 def _get_date(values: dict, block_id: str, action_id: str) -> str:
@@ -695,7 +686,7 @@ def _ok_ephemeral(text: str) -> dict:
     }
 
 
-def _ephemeral_reply(response_url: Optional[str], text: str) -> None:
+def _ephemeral_reply(response_url: str | None, text: str) -> None:
     """Post to a Slack response_url. Used when we're past the initial ack."""
     if not response_url:
         return
@@ -712,7 +703,7 @@ def _ephemeral_reply(response_url: Optional[str], text: str) -> None:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _format_time(iso: str) -> str:

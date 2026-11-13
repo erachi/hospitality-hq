@@ -1,6 +1,6 @@
 """Tests for the Slack-thread Q&A module."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from slack_qa import answer
 
@@ -16,7 +16,9 @@ def _mock_anthropic_response(text: str):
 @patch("slack_qa._get_client")
 def test_answer_uses_haiku_model(mock_client):
     """Q&A should use the Haiku model for latency."""
-    mock_client.return_value.messages.create.return_value = _mock_anthropic_response("Check-in is at 4 PM.")
+    mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
+        "Check-in is at 4 PM."
+    )
     answer(
         question="when is check-in?",
         property_name="Villa Bougainvillea",
@@ -43,7 +45,9 @@ def test_answer_includes_kb_in_prompt(mock_client):
 @patch("slack_qa._get_client")
 def test_answer_includes_thread_logs_in_prompt(mock_client):
     """Prior thread logs should be included so Claude can reference them."""
-    mock_client.return_value.messages.create.return_value = _mock_anthropic_response("Yes, we sent them towels")
+    mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
+        "Yes, we sent them towels"
+    )
     answer(
         question="any notes on this guest?",
         property_name="Villa",
@@ -55,7 +59,9 @@ def test_answer_includes_thread_logs_in_prompt(mock_client):
 
 @patch("slack_qa._get_client")
 def test_answer_returns_text(mock_client):
-    mock_client.return_value.messages.create.return_value = _mock_anthropic_response("Check-in is at 4 PM.")
+    mock_client.return_value.messages.create.return_value = _mock_anthropic_response(
+        "Check-in is at 4 PM."
+    )
     result = answer(question="when is check-in?", property_name="Villa")
     assert "Check-in" in result
 

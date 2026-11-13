@@ -3,10 +3,10 @@
 from moto import mock_aws
 
 from thread_logs import (
-    ThreadLogs,
-    TYPE_NOTE,
     TYPE_ISSUE,
+    TYPE_NOTE,
     TYPE_RESOLUTION,
+    ThreadLogs,
     format_for_claude,
 )
 
@@ -77,9 +77,24 @@ def test_format_for_claude_empty_list_returns_empty_string():
 
 def test_format_for_claude_includes_header_and_icons():
     logs = [
-        {"type": TYPE_NOTE, "text": "extra towels requested", "author": "U1", "created_at": "2026-04-20T12:00:00+00:00"},
-        {"type": TYPE_ISSUE, "text": "projector cord missing", "author": "U2", "created_at": "2026-04-20T13:00:00+00:00"},
-        {"type": TYPE_RESOLUTION, "text": "delivered replacement", "author": "U2", "created_at": "2026-04-20T14:00:00+00:00"},
+        {
+            "type": TYPE_NOTE,
+            "text": "extra towels requested",
+            "author": "U1",
+            "created_at": "2026-04-20T12:00:00+00:00",
+        },
+        {
+            "type": TYPE_ISSUE,
+            "text": "projector cord missing",
+            "author": "U2",
+            "created_at": "2026-04-20T13:00:00+00:00",
+        },
+        {
+            "type": TYPE_RESOLUTION,
+            "text": "delivered replacement",
+            "author": "U2",
+            "created_at": "2026-04-20T14:00:00+00:00",
+        },
     ]
     rendered = format_for_claude(logs)
     assert "INTERNAL NOTES" in rendered

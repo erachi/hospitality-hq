@@ -9,14 +9,14 @@ Fixture shapes mirror a real inquiry pulled from the Hospitable API.
 """
 
 import json
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import responses
 from moto import mock_aws
 
 from classifier import draft_response
-from handler import lambda_handler, inquiry_guest_name, inquiry_messages
+from handler import inquiry_guest_name, inquiry_messages, lambda_handler
 from hospitable_client import HospitableClient
 from slack_notifier import post_guest_alert
 from state_tracker import StateTracker, message_dedup_key
@@ -90,7 +90,9 @@ _CLASSIFICATION = {
 
 def test_inquiry_guest_name_joins_available_parts():
     assert inquiry_guest_name({"guest": {"first_name": "Reagan", "last_name": None}}) == "Reagan"
-    assert inquiry_guest_name({"guest": {"first_name": "Reagan", "last_name": "Lee"}}) == "Reagan Lee"
+    assert (
+        inquiry_guest_name({"guest": {"first_name": "Reagan", "last_name": "Lee"}}) == "Reagan Lee"
+    )
     assert inquiry_guest_name({}) == "Guest"
 
 
@@ -111,7 +113,12 @@ def test_inquiry_messages_are_sorted_oldest_first():
 @patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert", return_value={"ok": True})
 def test_webhook_processes_inquiry_message(
-    mock_slack, mock_summary, mock_draft, mock_classify, mock_hospitable, mock_secret,
+    mock_slack,
+    mock_summary,
+    mock_draft,
+    mock_classify,
+    mock_hospitable,
+    mock_secret,
     dynamodb_table,
 ):
     """Regression: inquiry messages (reservation_id null) used to be dropped."""
@@ -232,8 +239,17 @@ def test_inquiry_fetch_failure_does_not_block_reservation_alerts(
 @patch("webhook_handler.summarize_conversation", return_value="")
 @patch("webhook_handler.post_guest_alert", return_value={"ok": True})
 def test_inquiry_webhook_then_poller_posts_exactly_one_alert(
-    wh_slack, wh_summary, wh_draft, wh_classify, wh_hospitable, wh_secret,
-    p_slack, p_summary, p_draft, p_classify, p_hospitable,
+    wh_slack,
+    wh_summary,
+    wh_draft,
+    wh_classify,
+    wh_hospitable,
+    wh_secret,
+    p_slack,
+    p_summary,
+    p_draft,
+    p_classify,
+    p_hospitable,
     dynamodb_table,
 ):
     _mock_client_for_inquiry(wh_hospitable, [_guest_msg()])
@@ -261,7 +277,7 @@ def test_get_recent_inquiries_filters_by_activity_and_attaches_property(mock_tok
         json={"data": [{"id": INQ_ID}], "meta": {"current_page": 1, "last_page": 1}},
     )
 
-    since = datetime(2026, 10, 31, 15, 35, 0, tzinfo=timezone.utc)
+    since = datetime(2026, 10, 31, 15, 35, 0, tzinfo=UTC)
     results = HospitableClient().get_recent_inquiries([PROP_ID], since)
 
     assert results == [{"id": INQ_ID, "property_id": PROP_ID}]

@@ -22,7 +22,6 @@ from stay_provisioner import (
 )
 from stay_store import StayStore
 
-
 # ─── Slug helpers ──────────────────────────────────────────────────────
 
 
@@ -44,21 +43,12 @@ def test_build_channel_name_happy_path():
 
 
 def test_build_channel_name_missing_lastname_uses_fallback():
-    assert (
-        build_stay_channel_name("palm", "", "2026-01-01")
-        == "stay-palm-guest-20260101"
-    )
-    assert (
-        build_stay_channel_name("palm", "Jane", "2026-01-01")
-        == "stay-palm-jane-20260101"
-    )
+    assert build_stay_channel_name("palm", "", "2026-01-01") == "stay-palm-guest-20260101"
+    assert build_stay_channel_name("palm", "Jane", "2026-01-01") == "stay-palm-jane-20260101"
 
 
 def test_build_channel_name_non_ascii_guest_falls_back_to_guest():
-    assert (
-        build_stay_channel_name("villa", "李 伟", "2026-12-05")
-        == "stay-villa-guest-20261205"
-    )
+    assert build_stay_channel_name("villa", "李 伟", "2026-12-05") == "stay-villa-guest-20261205"
 
 
 def test_build_channel_name_strips_time_from_date():
@@ -69,10 +59,7 @@ def test_build_channel_name_strips_time_from_date():
 
 
 def test_build_channel_name_handles_bad_date():
-    assert (
-        build_stay_channel_name("palm", "Jane Smith", "")
-        == "stay-palm-smith-nodate"
-    )
+    assert build_stay_channel_name("palm", "Jane Smith", "") == "stay-palm-smith-nodate"
 
 
 def test_build_channel_name_truncates_to_80_chars():
@@ -168,9 +155,7 @@ def _reservation() -> dict:
 
 
 @mock_aws
-def test_provisioner_happy_path(
-    flag_on, no_invite_list, stay_channels_table, stay_journal_bucket
-):
+def test_provisioner_happy_path(flag_on, no_invite_list, stay_channels_table, stay_journal_bucket):
     """Full flow: journal seeded, channel created, intro posted,
     transcript backfilled, mapping committed, row returned."""
     messages = [
@@ -265,9 +250,7 @@ def test_provisioner_is_idempotent(
 
 
 @mock_aws
-def test_provisioner_feature_flag_off_is_noop(
-    flag_off, stay_channels_table, stay_journal_bucket
-):
+def test_provisioner_feature_flag_off_is_noop(flag_off, stay_channels_table, stay_journal_bucket):
     slack = _make_slack_client()
     hospitable = _make_hospitable_client()
 
@@ -334,9 +317,7 @@ def test_provisioner_aborts_on_missing_scope(
     flag_on, no_invite_list, stay_channels_table, stay_journal_bucket
 ):
     """Missing Slack scope aborts cleanly with the journal still written."""
-    slack = _make_slack_client(
-        create_responses=[{"ok": False, "error": "missing_scope"}]
-    )
+    slack = _make_slack_client(create_responses=[{"ok": False, "error": "missing_scope"}])
     hospitable = _make_hospitable_client()
 
     result = provision_if_missing(
@@ -456,9 +437,7 @@ def test_mirror_host_message_does_not_trigger_auto_draft(
 
 
 @mock_aws
-def test_mirror_dedup_skips_auto_draft(
-    flag_on, stay_channels_table, stay_journal_bucket
-):
+def test_mirror_dedup_skips_auto_draft(flag_on, stay_channels_table, stay_journal_bucket):
     """A dedup'd mirror returns before posting → dispatcher must not fire."""
     _seed_mapping()
     StayChannels().update_last_mirrored("res-abc", "2026-11-23T16:00:00Z")
@@ -508,9 +487,7 @@ def test_mirror_auto_draft_failure_does_not_fail_mirror(
 
 
 @mock_aws
-def test_mirror_dedups_on_high_water_mark(
-    flag_on, stay_channels_table, stay_journal_bucket
-):
+def test_mirror_dedups_on_high_water_mark(flag_on, stay_channels_table, stay_journal_bucket):
     """A message whose created_at is <= last_mirrored is a no-op."""
     _seed_mapping()
     sc = StayChannels()
@@ -535,9 +512,7 @@ def test_mirror_dedups_on_high_water_mark(
 
 
 @mock_aws
-def test_mirror_without_mapping_is_noop(
-    flag_on, stay_channels_table, stay_journal_bucket
-):
+def test_mirror_without_mapping_is_noop(flag_on, stay_channels_table, stay_journal_bucket):
     """No mapping row → mirror silently returns (next poll provisions)."""
     slack = _make_slack_client()
     result = mirror_message(
@@ -555,9 +530,7 @@ def test_mirror_without_mapping_is_noop(
 
 
 @mock_aws
-def test_mirror_feature_flag_off_is_noop(
-    flag_off, stay_channels_table, stay_journal_bucket
-):
+def test_mirror_feature_flag_off_is_noop(flag_off, stay_channels_table, stay_journal_bucket):
     _seed_mapping()
     slack = _make_slack_client()
     result = mirror_message(

@@ -3,8 +3,7 @@
 import yaml
 
 import knowledge_base_loader
-from knowledge_base_loader import load_kb, format_for_claude
-
+from knowledge_base_loader import format_for_claude, load_kb
 
 PALM_UUID = "3278e9cb-9239-487f-aa51-cbfbaf4b7570"
 
@@ -33,7 +32,11 @@ def test_load_kb_attaches_hub_snapshot_when_sibling_present(monkeypatch, tmp_pat
             "hospitable_snapshot": {
                 "fetched_at": "2026-11-02T00:00:00Z",
                 "topics": [
-                    {"name": "Access", "slug": "access", "items": [{"id": 1, "content": "code is 1234"}]}
+                    {
+                        "name": "Access",
+                        "slug": "access",
+                        "items": [{"id": 1, "content": "code is 1234"}],
+                    }
                 ],
             },
         },

@@ -1,6 +1,5 @@
 """Tests for the category taxonomy + merchant rule matching."""
 
-import expense_categories
 from expense_categories import (
     get_category,
     load_categories,

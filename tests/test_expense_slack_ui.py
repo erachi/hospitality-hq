@@ -15,7 +15,6 @@ from expense_slack_ui import (
     build_filed_card,
 )
 
-
 _PROPERTIES = [
     {"id": "3278e9cb-9239-487f-aa51-cbfbaf4b7570", "name": "The Palm Club", "slug": "palm"},
     {"id": "f8236d9d-988a-4192-9d16-2927b0b9ad8e", "name": "Villa Bougainvillea", "slug": "villa"},
@@ -142,12 +141,7 @@ def test_needs_review_adds_context_block():
         review_reason="total was partially obscured",
     )
     blocks, _ = build_extracted_card(expense=expense, properties=_PROPERTIES)
-    texts = [
-        el["text"]
-        for b in blocks
-        if b["type"] == "context"
-        for el in b.get("elements", [])
-    ]
+    texts = [el["text"] for b in blocks if b["type"] == "context" for el in b.get("elements", [])]
     assert any("Flagged for review" in t for t in texts)
 
 

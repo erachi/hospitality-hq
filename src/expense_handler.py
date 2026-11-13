@@ -28,8 +28,7 @@ import hmac
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs
 
 from config import (
@@ -43,8 +42,8 @@ from expense_categories import (
     valid_category_ids,
 )
 from expense_models import (
-    Allocation,
     CONFIDENCE_LOW,
+    Allocation,
     Expense,
     money_str,
     now_iso,
@@ -71,7 +70,6 @@ from expense_slack_ui import (
 )
 from expense_store import ExpenseStore
 from task_store import TaskStore
-
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -202,15 +200,13 @@ def _route_inner_event(inner: dict) -> None:
         try:
             ingest_file(inner, file_obj)
         except Exception as e:
-            logger.exception(
-                f"Ingest failed for file {file_obj.get('id')}: {e}"
-            )
+            logger.exception(f"Ingest failed for file {file_obj.get('id')}: {e}")
 
 
 # ─── Ingest pipeline ─────────────────────────────────────────────────────
 
 
-def ingest_file(message: dict, file_obj: dict) -> Optional[Expense]:
+def ingest_file(message: dict, file_obj: dict) -> Expense | None:
     """Run the ingest pipeline for one file. Returns the Expense or None."""
     mimetype = (file_obj.get("mimetype") or "").lower()
     if not mimetype.startswith("image/"):
@@ -241,7 +237,9 @@ def ingest_file(message: dict, file_obj: dict) -> Optional[Expense]:
     download_url = file_obj.get("url_private_download") or file_obj.get("url_private")
     if not download_url:
         logger.error(f"file {file_obj.get('id')} has no download URL")
-        _post_error_card(channel_id, message_ts, "Slack didn't return a download URL for that file.")
+        _post_error_card(
+            channel_id, message_ts, "Slack didn't return a download URL for that file."
+        )
         return None
 
     try:
@@ -399,7 +397,7 @@ def _post_error_card(channel_id: str, message_ts: str, reason: str) -> None:
 # ─── Helpers ─────────────────────────────────────────────────────────────
 
 
-def _match_property_from_caption(caption: str) -> Optional[str]:
+def _match_property_from_caption(caption: str) -> str | None:
     """Return a property_id if the caption names a known property, else None.
 
     Match order: exact slug, exact name (case-insensitive), token prefix.
@@ -430,7 +428,7 @@ def _match_property_from_caption(caption: str) -> Optional[str]:
     return None
 
 
-def _as_date(value) -> Optional[str]:
+def _as_date(value) -> str | None:
     """Return a YYYY-MM-DD string or None if unparseable."""
     if not value:
         return None
@@ -446,10 +444,10 @@ def _as_date(value) -> Optional[str]:
 
 
 def _today_iso_date() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
-def _as_money(value) -> Optional[str]:
+def _as_money(value) -> str | None:
     if value is None or value == "":
         return None
     try:
@@ -458,18 +456,18 @@ def _as_money(value) -> Optional[str]:
         return None
 
 
-def _as_money_or_none(value) -> Optional[str]:
+def _as_money_or_none(value) -> str | None:
     return _as_money(value)
 
 
-def _opt_str(value) -> Optional[str]:
+def _opt_str(value) -> str | None:
     if value is None:
         return None
     s = str(value).strip()
     return s or None
 
 
-def _norm_confidence(value) -> Optional[str]:
+def _norm_confidence(value) -> str | None:
     if value in ("high", "medium", "low"):
         return value
     return None
@@ -481,7 +479,7 @@ def _retention_until_iso() -> str:
     Floor of 7 years (IRS) — configurable via RECEIPT_RETENTION_DAYS.
     Returned in ISO-8601 UTC form that S3 accepts.
     """
-    until = datetime.now(timezone.utc) + timedelta(days=RECEIPT_RETENTION_DAYS)
+    until = datetime.now(UTC) + timedelta(days=RECEIPT_RETENTION_DAYS)
     return until.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
@@ -728,7 +726,7 @@ def _selected_option_value(action: dict) -> str:
     return selected.get("value", "")
 
 
-def _property_display_name(property_id: Optional[str]) -> Optional[str]:
+def _property_display_name(property_id: str | None) -> str | None:
     if not property_id:
         return None
     for p in TaskStore().load_properties():
@@ -737,7 +735,7 @@ def _property_display_name(property_id: Optional[str]) -> Optional[str]:
     return property_id
 
 
-def _category_display_name(category_id: Optional[str]) -> Optional[str]:
+def _category_display_name(category_id: str | None) -> str | None:
     if not category_id:
         return None
     row = get_category(category_id)
@@ -768,10 +766,8 @@ def _verify_signature(raw_body: str, timestamp: str, signature: str) -> bool:
     secret = get_slack_signing_secret()
     if not secret:
         return False
-    base_string = f"v0:{timestamp}:{raw_body}".encode("utf-8")
-    expected = (
-        "v0=" + hmac.new(secret.encode("utf-8"), base_string, hashlib.sha256).hexdigest()
-    )
+    base_string = f"v0:{timestamp}:{raw_body}".encode()
+    expected = "v0=" + hmac.new(secret.encode("utf-8"), base_string, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)
 
 

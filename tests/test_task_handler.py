@@ -1,7 +1,6 @@
 """Tests for the task Slack handler. We stub Slack HTTP calls and exercise
 the routing + persistence paths."""
 
-import base64
 import hashlib
 import hmac
 import json
@@ -11,14 +10,12 @@ from urllib.parse import urlencode
 
 import pytest
 
-
 SIGNING_SECRET = "test-slack-signing-secret"
 
 
 @pytest.fixture(autouse=True)
 def configured_slack_secret(monkeypatch):
     """Patch the signing-secret fetch to return a known test value."""
-    from config import get_slack_signing_secret
 
     monkeypatch.setattr(
         "task_handler.get_slack_signing_secret",
@@ -27,12 +24,16 @@ def configured_slack_secret(monkeypatch):
 
 
 def _sign(raw_body: str, timestamp: str, secret: str = SIGNING_SECRET) -> str:
-    base = f"v0:{timestamp}:{raw_body}".encode("utf-8")
+    base = f"v0:{timestamp}:{raw_body}".encode()
     digest = hmac.new(secret.encode("utf-8"), base, hashlib.sha256).hexdigest()
     return f"v0={digest}"
 
 
-def _event(raw_body: str, content_type: str = "application/x-www-form-urlencoded", path: str = "/slack/tasks/commands"):
+def _event(
+    raw_body: str,
+    content_type: str = "application/x-www-form-urlencoded",
+    path: str = "/slack/tasks/commands",
+):
     ts = str(int(time.time()))
     sig = _sign(raw_body, ts)
     return {
@@ -142,7 +143,9 @@ def test_slash_command_list_by_property_slug(tasks_bucket):
 def test_slash_command_unknown_property(tasks_bucket):
     from task_handler import slack_tasks_handler
 
-    body = urlencode({"command": "/task", "text": "list moreland", "user_id": "UVJ", "trigger_id": "T"})
+    body = urlencode(
+        {"command": "/task", "text": "list moreland", "user_id": "UVJ", "trigger_id": "T"}
+    )
     result = slack_tasks_handler(_event(body), None)
 
     payload = json.loads(result["body"])
@@ -151,8 +154,8 @@ def test_slash_command_unknown_property(tasks_bucket):
 
 def test_view_submission_creates_task_and_posts_card(tasks_bucket):
     from task_handler import slack_tasks_handler
-    from task_store import TaskStore
     from task_slack_ui import CREATE_MODAL_CALLBACK_ID
+    from task_store import TaskStore
 
     submission = {
         "type": "view_submission",
@@ -163,15 +166,9 @@ def test_view_submission_creates_task_and_posts_card(tasks_bucket):
                 "values": {
                     "title_block": {"title": {"value": "Fix garbage disposal"}},
                     "description_block": {"description": {"value": "Guest reported it"}},
-                    "property_block": {
-                        "property": {"selected_option": {"value": "prop-palm"}}
-                    },
-                    "assignee_block": {
-                        "assignee": {"selected_option": {"value": "maggie"}}
-                    },
-                    "priority_block": {
-                        "priority": {"selected_option": {"value": "high"}}
-                    },
+                    "property_block": {"property": {"selected_option": {"value": "prop-palm"}}},
+                    "assignee_block": {"assignee": {"selected_option": {"value": "maggie"}}},
+                    "priority_block": {"priority": {"selected_option": {"value": "high"}}},
                     "due_date_block": {"due_date": {"selected_date": "2026-05-01"}},
                 }
             },
@@ -180,15 +177,11 @@ def test_view_submission_creates_task_and_posts_card(tasks_bucket):
 
     body = urlencode({"payload": json.dumps(submission)})
 
-    with patch("task_handler.post_message") as post_mock, patch(
-        "task_handler.dm_user"
-    ) as dm_mock:
+    with patch("task_handler.post_message") as post_mock, patch("task_handler.dm_user") as dm_mock:
         post_mock.return_value = {"ok": True, "ts": "1700000000.000123", "channel": "C_TEST_TASKS"}
         dm_mock.return_value = {"ok": True}
 
-        result = slack_tasks_handler(
-            _event(body, path="/slack/tasks/interactions"), None
-        )
+        result = slack_tasks_handler(_event(body, path="/slack/tasks/interactions"), None)
 
     assert result["statusCode"] == 200
     post_mock.assert_called_once()
@@ -220,15 +213,9 @@ def test_view_submission_requires_title(tasks_bucket):
                 "values": {
                     "title_block": {"title": {"value": "  "}},
                     "description_block": {"description": {"value": ""}},
-                    "property_block": {
-                        "property": {"selected_option": {"value": "prop-palm"}}
-                    },
-                    "assignee_block": {
-                        "assignee": {"selected_option": {"value": "vj"}}
-                    },
-                    "priority_block": {
-                        "priority": {"selected_option": {"value": "normal"}}
-                    },
+                    "property_block": {"property": {"selected_option": {"value": "prop-palm"}}},
+                    "assignee_block": {"assignee": {"selected_option": {"value": "vj"}}},
+                    "priority_block": {"priority": {"selected_option": {"value": "normal"}}},
                     "due_date_block": {"due_date": {"selected_date": ""}},
                 }
             },
@@ -236,9 +223,7 @@ def test_view_submission_requires_title(tasks_bucket):
     }
     body = urlencode({"payload": json.dumps(submission)})
 
-    result = slack_tasks_handler(
-        _event(body, path="/slack/tasks/interactions"), None
-    )
+    result = slack_tasks_handler(_event(body, path="/slack/tasks/interactions"), None)
     payload = json.loads(result["body"])
     assert payload["response_action"] == "errors"
     assert "title_block" in payload["errors"]
@@ -269,15 +254,14 @@ def test_mark_done_button_closes_task_and_refreshes_card(tasks_bucket):
     }
     body = urlencode({"payload": json.dumps(payload)})
 
-    with patch("task_handler.update_message") as update_mock, patch(
-        "task_handler.post_message"
-    ) as post_mock:
+    with (
+        patch("task_handler.update_message") as update_mock,
+        patch("task_handler.post_message") as post_mock,
+    ):
         update_mock.return_value = {"ok": True}
         post_mock.return_value = {"ok": True, "ts": "x", "channel": "C_TEST_TASKS"}
 
-        result = slack_tasks_handler(
-            _event(body, path="/slack/tasks/interactions"), None
-        )
+        result = slack_tasks_handler(_event(body, path="/slack/tasks/interactions"), None)
 
     assert result["statusCode"] == 200
     updated = store.get(t.id)
@@ -310,9 +294,11 @@ def test_swap_assignee_flips_between_two_users(tasks_bucket):
     }
     body = urlencode({"payload": json.dumps(payload)})
 
-    with patch("task_handler.update_message") as _update_mock, patch(
-        "task_handler.post_message"
-    ) as _post_mock, patch("task_handler.dm_user") as _dm_mock:
+    with (
+        patch("task_handler.update_message") as _update_mock,
+        patch("task_handler.post_message") as _post_mock,
+        patch("task_handler.dm_user") as _dm_mock,
+    ):
         _update_mock.return_value = {"ok": True}
         _post_mock.return_value = {"ok": True}
         _dm_mock.return_value = {"ok": True}

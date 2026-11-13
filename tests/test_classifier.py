@@ -1,6 +1,7 @@
 """Tests for issue classifier and response drafter."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from classifier import classify_message, draft_response, summarize_conversation
 
 
@@ -145,11 +146,7 @@ def test_draft_includes_local_kb_context(mock_client):
         "Check-in is at 4 PM."
     )
 
-    local_kb = (
-        "PROPERTY: Villa Bougainvillea\n\n"
-        "═══ AUTHORITATIVE FACTS ═══\n"
-        "Check In: 4:00 PM"
-    )
+    local_kb = "PROPERTY: Villa Bougainvillea\n\n═══ AUTHORITATIVE FACTS ═══\nCheck In: 4:00 PM"
 
     draft_response(
         message_text="What time is check-in?",
@@ -232,10 +229,13 @@ def test_summarize_conversation_returns_bullets(mock_client):
 def test_summarize_conversation_skips_thin_threads(mock_client):
     """Threads with fewer than 2 messages aren't worth an API call."""
     assert summarize_conversation([], "Villa Bougainvillea") == ""
-    assert summarize_conversation(
-        [{"sender_type": "guest", "body": "hi"}],
-        "Villa Bougainvillea",
-    ) == ""
+    assert (
+        summarize_conversation(
+            [{"sender_type": "guest", "body": "hi"}],
+            "Villa Bougainvillea",
+        )
+        == ""
+    )
 
     # No call was made.
     mock_client.return_value.messages.create.assert_not_called()

@@ -22,14 +22,12 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
 from config import EXPENSES_BUCKET
-from expense_models import Expense, EXPENSE_ID_RE
-
+from expense_models import EXPENSE_ID_RE, Expense
 
 logger = logging.getLogger(__name__)
 
@@ -51,20 +49,18 @@ def _s3():
 class ExpenseStore:
     """Read/write expenses to S3."""
 
-    def __init__(self, bucket: Optional[str] = None):
+    def __init__(self, bucket: str | None = None):
         self.bucket = bucket or EXPENSES_BUCKET
 
     # ─── Expense CRUD ────────────────────────────────────────────────────
 
-    def get(self, expense_id: str) -> Optional[Expense]:
+    def get(self, expense_id: str) -> Expense | None:
         m = EXPENSE_ID_RE.match(expense_id or "")
         if not m:
             return None
         year = m.group(1)
         try:
-            obj = _s3().get_object(
-                Bucket=self.bucket, Key=_expense_key(year, expense_id)
-            )
+            obj = _s3().get_object(Bucket=self.bucket, Key=_expense_key(year, expense_id))
             return Expense.from_dict(json.loads(obj["Body"].read()))
         except ClientError as e:
             if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
@@ -110,7 +106,7 @@ class ExpenseStore:
         expense_id: str,
         body: bytes,
         content_type: str,
-        retention_until: Optional[str] = None,
+        retention_until: str | None = None,
     ) -> str:
         """Upload the original receipt. Returns the S3 key.
 
@@ -160,13 +156,11 @@ class ExpenseStore:
             ContentType="application/json",
         )
 
-    def get_expense_by_thread(self, thread_ts: str) -> Optional[Expense]:
+    def get_expense_by_thread(self, thread_ts: str) -> Expense | None:
         if not thread_ts:
             return None
         try:
-            obj = _s3().get_object(
-                Bucket=self.bucket, Key=_slack_index_key(thread_ts)
-            )
+            obj = _s3().get_object(Bucket=self.bucket, Key=_slack_index_key(thread_ts))
             pointer = json.loads(obj["Body"].read())
             return self.get(pointer.get("expense_id", ""))
         except ClientError as e:
@@ -188,7 +182,7 @@ class ExpenseStore:
         return keys
 
     def _get_many(self, keys: list[str]) -> list[Expense]:
-        def _fetch(key: str) -> Optional[Expense]:
+        def _fetch(key: str) -> Expense | None:
             try:
                 obj = _s3().get_object(Bucket=self.bucket, Key=key)
                 return Expense.from_dict(json.loads(obj["Body"].read()))

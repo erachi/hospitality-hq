@@ -1,8 +1,6 @@
 """Tests for the S3-backed TaskStore."""
 
-import json
-
-from task_models import Task, STATUS_DONE, PRIORITY_HIGH, PROPERTY_BUSINESS
+from task_models import PROPERTY_BUSINESS, STATUS_DONE, Task
 from task_store import TaskStore
 
 

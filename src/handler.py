@@ -12,24 +12,24 @@ for VJ or Maggie to review and send manually.
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
+from classifier import classify_message, draft_response, summarize_conversation
 from config import PROPERTY_UUIDS, STAY_CHANNELS_ENABLED
 from hospitable_client import HospitableClient
-from state_tracker import StateTracker, message_dedup_key
-from classifier import classify_message, draft_response, summarize_conversation
-from slack_notifier import post_guest_alert, StayChannelSlackClient
 from knowledge_base_loader import (
-    load_kb,
     format_for_claude,
     get_property_name,
     get_property_slug,
+    load_kb,
 )
+from slack_notifier import StayChannelSlackClient, post_guest_alert
+from state_tracker import StateTracker, message_dedup_key
 from stay_channels import StayChannels
-from stay_provisioner import provision_if_missing, mirror_message
+from stay_provisioner import mirror_message, provision_if_missing
+from thread_logs import ThreadLogs
+from thread_logs import format_for_claude as format_thread_logs
 from thread_mapping import ThreadMapping
-from thread_logs import ThreadLogs, format_for_claude as format_thread_logs
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -42,7 +42,7 @@ def _date_only(value: str) -> str:
     return value.split("T", 1)[0]
 
 
-def _parse_iso(ts: str) -> Optional[datetime]:
+def _parse_iso(ts: str) -> datetime | None:
     """Parse an ISO-8601 timestamp to a UTC-aware datetime, or None."""
     if not ts:
         return None
@@ -52,8 +52,8 @@ def _parse_iso(ts: str) -> Optional[datetime]:
             s = s[:-1] + "+00:00"
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
     except (ValueError, TypeError):
         return None
 
@@ -102,11 +102,11 @@ def lambda_handler(event, context):
 
         for reservation in reservations:
             try:
-                process_reservation(
-                    reservation, hospitable, tracker, property_cache, stats
-                )
+                process_reservation(reservation, hospitable, tracker, property_cache, stats)
             except Exception as e:
-                error_msg = f"Error processing reservation {reservation.get('id', 'unknown')}: {str(e)}"
+                error_msg = (
+                    f"Error processing reservation {reservation.get('id', 'unknown')}: {str(e)}"
+                )
                 logger.error(error_msg)
                 stats["errors"].append(error_msg)
 
@@ -115,7 +115,7 @@ def lambda_handler(event, context):
         # lookback window — older ones can't contain alertable messages.
         # A failure here must not lose the reservation alerts above.
         try:
-            since = datetime.now(timezone.utc) - timedelta(hours=_get_lookback_hours())
+            since = datetime.now(UTC) - timedelta(hours=_get_lookback_hours())
             inquiries = hospitable.get_recent_inquiries(PROPERTY_UUIDS, since)
             stats["inquiries_checked"] = len(inquiries)
             logger.info(f"Found {len(inquiries)} inquiries with recent activity")
@@ -127,9 +127,7 @@ def lambda_handler(event, context):
 
         for inquiry in inquiries:
             try:
-                process_inquiry(
-                    inquiry, hospitable, tracker, property_cache, stats
-                )
+                process_inquiry(inquiry, hospitable, tracker, property_cache, stats)
             except Exception as e:
                 error_msg = f"Error processing inquiry {inquiry.get('id', 'unknown')}: {str(e)}"
                 logger.error(error_msg)
@@ -170,9 +168,7 @@ def process_reservation(
     # The Hospitable API doesn't reliably return property_name on reservations,
     # so we resolve it from our own KB first.
     property_name = (
-        get_property_name(property_id)
-        or reservation.get("property_name")
-        or "Unknown Property"
+        get_property_name(property_id) or reservation.get("property_name") or "Unknown Property"
     )
 
     # Extract guest info
@@ -212,9 +208,7 @@ def process_reservation(
                 slack_client=StayChannelSlackClient(),
             )
         except Exception as e:
-            logger.warning(
-                f"Stay-channel provisioning failed for {res_uuid}: {e}"
-            )
+            logger.warning(f"Stay-channel provisioning failed for {res_uuid}: {e}")
 
     process_conversation(
         conversation_id=res_uuid,
@@ -251,11 +245,7 @@ def process_inquiry(
 
     prop = detail.get("properties") or {}
     property_id = inquiry.get("property_id") or prop.get("id", "")
-    property_name = (
-        get_property_name(property_id)
-        or prop.get("name")
-        or "Unknown Property"
-    )
+    property_name = get_property_name(property_id) or prop.get("name") or "Unknown Property"
 
     process_conversation(
         conversation_id=inq_uuid,
@@ -279,9 +269,7 @@ def process_inquiry(
 def inquiry_guest_name(inquiry: dict) -> str:
     """Inquiry guests carry first/last name only — no full_name."""
     guest = inquiry.get("guest") or {}
-    name = " ".join(
-        p for p in (guest.get("first_name"), guest.get("last_name")) if p
-    )
+    name = " ".join(p for p in (guest.get("first_name"), guest.get("last_name")) if p)
     return name or "Guest"
 
 
@@ -311,7 +299,7 @@ def process_conversation(
     property_cache: dict,
     stats: dict,
     is_inquiry: bool = False,
-    party_size: Optional[int] = None,
+    party_size: int | None = None,
 ) -> None:
     """Alert on unanswered guest messages in one conversation thread.
 
@@ -344,11 +332,9 @@ def process_conversation(
                     guest_name=guest_name,
                 )
             except Exception as e:
-                logger.warning(
-                    f"Mirror failed for {res_uuid}/{msg.get('id', '')}: {e}"
-                )
+                logger.warning(f"Mirror failed for {res_uuid}/{msg.get('id', '')}: {e}")
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=_get_lookback_hours())
+    cutoff = datetime.now(UTC) - timedelta(hours=_get_lookback_hours())
 
     # Hospitable returns messages chronologically (oldest first), so a later
     # index is a later message in the conversation.
@@ -384,9 +370,7 @@ def process_conversation(
                 f"Skipping guest message in {res_uuid} — already answered by host "
                 f"(dedup_key={dedup_key})"
             )
-            tracker.mark_message_processed(
-                res_uuid, dedup_key, "ANSWERED", "LOW", property_name
-            )
+            tracker.mark_message_processed(res_uuid, dedup_key, "ANSWERED", "LOW", property_name)
             continue
 
         new_guest_messages.append((msg, dedup_key))
@@ -523,7 +507,11 @@ def process_conversation(
 
         # Mark as processed regardless (to avoid re-posting on failure)
         tracker.mark_message_processed(
-            res_uuid, dedup_key, classification["category"], classification["urgency"], property_name
+            res_uuid,
+            dedup_key,
+            classification["category"],
+            classification["urgency"],
+            property_name,
         )
 
 

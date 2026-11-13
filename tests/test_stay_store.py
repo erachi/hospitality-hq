@@ -5,11 +5,11 @@ import json
 import boto3
 
 from stay_models import (
-    StayEntry,
-    StayJournal,
     SOURCE_HOSPITABLE_GUEST,
     SOURCE_SLACK_USER,
     SOURCE_SYSTEM,
+    StayEntry,
+    StayJournal,
 )
 from stay_store import StayStore
 
@@ -28,9 +28,7 @@ def _journal(res_uuid: str = "res-1") -> StayJournal:
 def test_put_and_get_roundtrip(stay_journal_bucket):
     store = StayStore()
     j = _journal()
-    j.append(
-        StayEntry.new(source=SOURCE_SYSTEM, author="system", body="provisioned")
-    )
+    j.append(StayEntry.new(source=SOURCE_SYSTEM, author="system", body="provisioned"))
 
     store.put(j)
     back = store.get("res-1")
@@ -134,8 +132,6 @@ def test_key_uses_prefix(stay_journal_bucket):
     store.put(_journal("res-keyed"))
 
     s3 = boto3.client("s3", region_name="us-east-1")
-    obj = s3.get_object(
-        Bucket="hospitality-hq-tasks-test", Key="stays/res-keyed.json"
-    )
+    obj = s3.get_object(Bucket="hospitality-hq-tasks-test", Key="stays/res-keyed.json")
     data = json.loads(obj["Body"].read())
     assert data["reservation_uuid"] == "res-keyed"

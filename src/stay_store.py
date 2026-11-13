@@ -18,14 +18,12 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
 from config import STAY_JOURNAL_BUCKET, STAY_JOURNAL_PREFIX
 from stay_models import StayEntry, StayJournal
-
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +51,8 @@ class StayStore:
 
     def __init__(
         self,
-        bucket: Optional[str] = None,
-        prefix: Optional[str] = None,
+        bucket: str | None = None,
+        prefix: str | None = None,
     ):
         self.bucket = bucket or STAY_JOURNAL_BUCKET
         # Normalize to a trailing slash; empty means root.
@@ -63,14 +61,12 @@ class StayStore:
 
     # ─── Journal CRUD ────────────────────────────────────────────────
 
-    def get(self, reservation_uuid: str) -> Optional[StayJournal]:
+    def get(self, reservation_uuid: str) -> StayJournal | None:
         """Fetch one journal by reservation_uuid. None if missing."""
         if not reservation_uuid:
             return None
         try:
-            obj = _s3().get_object(
-                Bucket=self.bucket, Key=self._key(reservation_uuid)
-            )
+            obj = _s3().get_object(Bucket=self.bucket, Key=self._key(reservation_uuid))
             return StayJournal.from_dict(json.loads(obj["Body"].read()))
         except ClientError as e:
             if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
@@ -88,9 +84,7 @@ class StayStore:
             ContentType="application/json",
         )
 
-    def append_entry(
-        self, reservation_uuid: str, entry: StayEntry
-    ) -> Optional[StayJournal]:
+    def append_entry(self, reservation_uuid: str, entry: StayEntry) -> StayJournal | None:
         """Load, append, write back. Returns the updated journal or None
         if the journal does not exist.
 
@@ -100,9 +94,7 @@ class StayStore:
         """
         journal = self.get(reservation_uuid)
         if journal is None:
-            logger.warning(
-                "append_entry: no journal for reservation %s", reservation_uuid
-            )
+            logger.warning("append_entry: no journal for reservation %s", reservation_uuid)
             return None
         journal.append(entry)
         self.put(journal)
@@ -114,7 +106,7 @@ class StayStore:
         if not keys:
             return []
 
-        def _fetch(key: str) -> Optional[StayJournal]:
+        def _fetch(key: str) -> StayJournal | None:
             try:
                 obj = _s3().get_object(Bucket=self.bucket, Key=key)
                 return StayJournal.from_dict(json.loads(obj["Body"].read()))

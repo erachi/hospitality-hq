@@ -7,14 +7,13 @@ Runs once a day via EventBridge. Idempotent — safe to re-run.
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from config import TASKS_CHANNEL_ID
 from task_models import Task
-from task_store import TaskStore
-from task_slack_client import post_message, dm_user
+from task_slack_client import dm_user, post_message
 from task_slack_ui import build_task_list_blocks
-
+from task_store import TaskStore
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -28,7 +27,7 @@ def lambda_handler(event, context):
     logger.info("Task escalator starting")
 
     store = TaskStore()
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     tasks = store.list_all(include_closed=False)
 
     overdue_by_user: dict[str, list[Task]] = defaultdict(list)
@@ -120,8 +119,8 @@ def lambda_handler(event, context):
 def _days_between(earlier_iso_date: str, later_iso_date: str) -> int:
     """Days from earlier → later, assuming both are YYYY-MM-DD strings."""
     try:
-        e = datetime.fromisoformat(earlier_iso_date).date()
-        l = datetime.fromisoformat(later_iso_date).date()
-        return (l - e).days
+        earlier = datetime.fromisoformat(earlier_iso_date).date()
+        later = datetime.fromisoformat(later_iso_date).date()
+        return (later - earlier).days
     except ValueError:
         return 0

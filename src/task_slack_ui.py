@@ -4,26 +4,21 @@ All Slack rendering lives here so handlers stay focused on flow. Functions
 are pure: they take task/context data and return Slack block dicts.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from task_models import (
-    Task,
-    STATUS_LABEL,
-    PRIORITY_LABEL,
-    PRIORITY_EMOJI,
     ALL_PRIORITIES,
-    ALL_STATUSES,
     OPEN_STATUSES,
-    STATUS_OPEN,
-    STATUS_IN_PROGRESS,
-    STATUS_BLOCKED,
-    STATUS_DONE,
-    STATUS_CANCELLED,
+    PRIORITY_EMOJI,
+    PRIORITY_LABEL,
     PRIORITY_NORMAL,
     PROPERTY_BUSINESS,
+    STATUS_BLOCKED,
+    STATUS_IN_PROGRESS,
+    STATUS_LABEL,
+    STATUS_OPEN,
+    Task,
 )
-
 
 _MAX_TEXT_LEN = 3000
 
@@ -210,7 +205,10 @@ def build_task_card_blocks(
         {"type": "mrkdwn", "text": f"*Property*\n{property_name}"},
         {"type": "mrkdwn", "text": f"*Assignee*\n{assignee_name}"},
         {"type": "mrkdwn", "text": f"*Status*\n{status_label}"},
-        {"type": "mrkdwn", "text": f"*Priority*\n{PRIORITY_LABEL.get(task.priority, task.priority)}"},
+        {
+            "type": "mrkdwn",
+            "text": f"*Priority*\n{PRIORITY_LABEL.get(task.priority, task.priority)}",
+        },
     ]
     if task.due_date:
         due_label = _format_due_date(task.due_date, task.status)
@@ -369,14 +367,12 @@ def build_task_list_blocks(
         }
     ]
     if not tasks:
-        blocks.append(
-            {"type": "section", "text": {"type": "mrkdwn", "text": empty_text}}
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": empty_text}})
         return blocks
 
     # Sort: overdue first, then priority (urgent→low), then due date, then created
     priority_rank = {p: i for i, p in enumerate(("urgent", "high", "normal", "low"))}
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
 
     def sort_key(t: Task):
         overdue = 0 if t.is_overdue(today) else 1
@@ -447,7 +443,7 @@ def _format_due_date(due_date: str, status: str) -> str:
         d = datetime.fromisoformat(due_date).date()
     except ValueError:
         return due_date
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     delta = (d - today).days
     if status not in OPEN_STATUSES:
         return due_date
