@@ -135,6 +135,40 @@ To change how often the monitor runs, redeploy with a different rate:
 sam deploy --parameter-overrides ScheduleRate="rate(5 minutes)"
 ```
 
+## Feature Flags
+
+Flags are backed by **AWS AppConfig**. Each Lambda loads the AppConfig extension as a layer and reads flags from `localhost:2772` via `src/flags.py`:
+
+```python
+from flags import is_enabled
+
+if is_enabled("feature.expenses.new_ocr_model"):
+    new_code()
+else:
+    old_code()
+```
+
+New code should land with its flag **OFF**. To add a flag, edit the `AppConfigInitialFlagsVersion.Properties.Content` block in `template.yaml`:
+
+```yaml
+Content: |
+  {
+    "flags": {
+      "feature.expenses.new_ocr_model": {
+        "name": "Use Haiku 5.5 for receipt OCR"
+      }
+    },
+    "values": {
+      "feature.expenses.new_ocr_model": { "enabled": false }
+    },
+    "version": "1"
+  }
+```
+
+Deploy ships the flag defaulting OFF. To turn it ON at runtime, flip the value in the AppConfig console (`Applications → hospitality-hq → Configuration profiles → feature-flags → Start deployment`). Rollout completes in about 45 seconds; no redeploy needed.
+
+After confirming the flag's new path is stable, remove the `if is_enabled(...)` branch in code and remove the flag from `template.yaml` on the next PR.
+
 ## Monitoring & Troubleshooting
 
 **View recent logs:**
