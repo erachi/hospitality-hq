@@ -471,6 +471,27 @@ def mirror_message(
                 e,
             )
 
+    # Auto-draft hand-off. Only for guest-source messages — host mirrors
+    # don't need a reply. Guarded inside the handler on STAY_AUTO_DRAFT_ENABLED
+    # and the in-stay window. Imported lazily to avoid a circular import.
+    if (message.get("sender_type") or "").lower() == "guest" and posted_ts:
+        try:
+            from stay_agent import handle_mirrored_guest_message
+
+            handle_mirrored_guest_message(
+                reservation_uuid=reservation_uuid,
+                stay_row=row,
+                message=message,
+            )
+        except Exception as e:
+            # A draft failure must never fail the mirror — the guest
+            # message itself is already journaled and posted.
+            logger.warning(
+                "mirror: auto-draft hand-off failed for %s: %s",
+                reservation_uuid,
+                e,
+            )
+
     return posted_ts
 
 

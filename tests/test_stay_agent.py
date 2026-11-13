@@ -19,6 +19,7 @@ from stay_agent import (
     _render_entry_body,
     handle_channel_message,
     handle_discard_draft,
+    handle_mirrored_guest_message,
     handle_send_draft,
 )
 from stay_channels import StayChannels
@@ -442,3 +443,217 @@ def test_discard_draft_updates_card_and_journals(
     journal = StayStore().get("res-x")
     last = journal.entries[-1]
     assert last.metadata["draft_state"] == "discarded"
+
+
+# ─── handle_mirrored_guest_message (auto-draft) ────────────────────────
+
+
+@pytest.fixture
+def auto_draft_on(monkeypatch):
+    """Turn on both flags needed for auto-draft to fire."""
+    monkeypatch.setattr(stay_agent, "STAY_CHANNELS_ENABLED", True, raising=False)
+    monkeypatch.setattr(stay_agent, "STAY_AUTO_DRAFT_ENABLED", True, raising=False)
+
+
+@pytest.fixture
+def _in_stay_today(monkeypatch):
+    """Pin `is_in_stay_window` to True so date-of-run doesn't flake tests."""
+    monkeypatch.setattr(stay_agent, "is_in_stay_window", lambda *a, **k: True)
+
+
+def _guest_message(body: str = "AC quit", msg_id: str = "m-live") -> dict:
+    return {
+        "id": msg_id,
+        "body": body,
+        "sender_type": "guest",
+        "created_at": "2026-11-22T20:00:00Z",
+    }
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_posts_draft_card(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    row = _seed_live_stay()
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1700000000.9"}
+    model_output = (
+        "AC in Scottsdale heat — this is urgent. I'm offering a quick "
+        "acknowledgement while Ashur gets dispatched.\n"
+        "<<DRAFT>>\n"
+        "So sorry about the AC — I'm sending someone over right now. I'll "
+        "update you as soon as I have an ETA.\n"
+        "<<END_DRAFT>>"
+    )
+    with patch("stay_agent._call_claude", return_value=model_output):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message("AC quit"),
+            slack_client=slack,
+        )
+
+    # Chat preamble + draft card.
+    assert slack.post_message.call_count == 2
+    second_blocks = slack.post_message.call_args_list[1].kwargs.get("blocks") or []
+    assert any(b.get("type") == "actions" for b in second_blocks)
+    action_block = next(b for b in second_blocks if b.get("type") == "actions")
+    ids = [e.get("action_id") for e in action_block["elements"]]
+    assert "stay_send_draft" in ids
+    assert "stay_discard_draft" in ids
+
+    # Agent turn was journaled with auto_trigger=True metadata.
+    journal = StayStore().get("res-x")
+    agent_entries = [e for e in journal.entries if e.source == SOURCE_SLACK_AGENT]
+    assert agent_entries
+    assert agent_entries[-1].metadata["auto_trigger"] is True
+    assert agent_entries[-1].metadata["has_draft"] is True
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_does_not_journal_user_turn(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    """The mirror already appended the guest turn — the dispatcher must
+    not double-write it (which would inflate the agent's context and
+    confuse the role-mapping)."""
+    row = _seed_live_stay()
+    before = len(StayStore().get("res-x").entries)
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1.1"}
+    with patch("stay_agent._call_claude", return_value="just chatting, no tag"):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message(),
+            slack_client=slack,
+        )
+    after_sources = [e.source for e in StayStore().get("res-x").entries]
+    # Exactly one new entry — the agent turn. No fresh SOURCE_SLACK_USER
+    # or SOURCE_HOSPITABLE_GUEST was added by this path.
+    assert len(after_sources) == before + 1
+    assert after_sources[-1] == SOURCE_SLACK_AGENT
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_silent_when_no_draft_tag(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    """No `<<DRAFT>>` in the model output → auto path must not post the
+    human-trigger `(no reply)` placeholder. Channel stays clean."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    with patch("stay_agent._call_claude", return_value="hmm, nothing to add"):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message(),
+            slack_client=slack,
+        )
+    slack.post_message.assert_not_called()
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_silent_on_claude_error(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    """Claude failure in the auto path is silent — no apology post."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    with patch("stay_agent._call_claude", side_effect=RuntimeError("boom")):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message(),
+            slack_client=slack,
+        )
+    slack.post_message.assert_not_called()
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_noop_when_flag_off(
+    monkeypatch, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    monkeypatch.setattr(stay_agent, "STAY_CHANNELS_ENABLED", True, raising=False)
+    monkeypatch.setattr(stay_agent, "STAY_AUTO_DRAFT_ENABLED", False, raising=False)
+    row = _seed_live_stay()
+    slack = MagicMock()
+    with patch("stay_agent._call_claude") as mock_claude:
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message(),
+            slack_client=slack,
+        )
+    mock_claude.assert_not_called()
+    slack.post_message.assert_not_called()
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_noop_outside_in_stay_window(
+    auto_draft_on, stay_channels_table, stay_journal_bucket
+):
+    """Pre-booking inquiries (today << check_in) must not auto-draft."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    # No _in_stay_today fixture — use the real predicate, which returns
+    # False because today (whenever tests run) is not between 2026-11-19
+    # and 2026-11-25 for the seeded stay. We also patch it explicitly to
+    # avoid false negatives if someone runs these tests in late 2026.
+    with patch("stay_agent.is_in_stay_window", return_value=False), patch(
+        "stay_agent._call_claude"
+    ) as mock_claude:
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message(),
+            slack_client=slack,
+        )
+    mock_claude.assert_not_called()
+    slack.post_message.assert_not_called()
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_noop_for_host_sender(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    """Defence in depth — even if the mirror forgot to filter, host
+    messages must not trigger a draft."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    msg = {
+        "id": "m-host",
+        "body": "see you at 3",
+        "sender_type": "host",
+        "created_at": "2026-11-22T20:00:00Z",
+    }
+    with patch("stay_agent._call_claude") as mock_claude:
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=msg,
+            slack_client=slack,
+        )
+    mock_claude.assert_not_called()
+    slack.post_message.assert_not_called()
+
+
+def test_build_system_prompt_appends_auto_trigger_hint():
+    """The auto-draft path threads `auto_trigger=True`, which must add
+    the hint so the model knows no human is waiting on a chat reply."""
+    from stay_agent import _build_system_prompt
+
+    with_hint = _build_system_prompt(
+        reservation_context="",
+        kb_text="",
+        thread_logs_text="",
+        auto_trigger=True,
+    )
+    without_hint = _build_system_prompt(
+        reservation_context="",
+        kb_text="",
+        thread_logs_text="",
+        auto_trigger=False,
+    )
+    assert "auto-triggered" in with_hint.lower()
+    assert "auto-triggered" not in without_hint.lower()
