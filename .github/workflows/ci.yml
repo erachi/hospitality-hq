@@ -118,4 +118,5 @@ jobs:
           sam deploy \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --no-progressbar
+            --no-progressbar \
+            --parameter-overrides AlarmEmail=${{ vars.ALARM_EMAIL }}

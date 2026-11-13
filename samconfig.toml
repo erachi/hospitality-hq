@@ -1,0 +1,20 @@
+version = 0.1
+
+# Checked into the repo so GitHub Actions `sam deploy` can find the stack
+# name + parameter overrides. API secrets still live in SSM Parameter Store
+# (see ./setup-secrets.sh). Personal data (AlarmEmail) is passed in via the
+# ALARM_EMAIL repo variable at deploy time; see .github/workflows/ci.yml.
+
+[default.deploy.parameters]
+stack_name = "hospitality-hq"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+
+parameter_overrides = [
+    "SlackChannelId=C0ARUGVP8P7",
+    "PropertyUuids=f8236d9d-988a-4192-9d16-2927b0b9ad8e,3278e9cb-9239-487f-aa51-cbfbaf4b7570",
+    "SSMPrefix=/hospitality-hq",
+    "OpsSlackChannelId=C0ATVHPQG3W",
+]
