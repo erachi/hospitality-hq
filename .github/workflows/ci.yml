@@ -7,27 +7,33 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12"]
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff==0.17.5
+      - name: ruff check
+        run: ruff check src tests
+      - name: ruff format --check
+        run: ruff format --check src tests
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r src/requirements.txt
           pip install -r tests/requirements-test.txt
-
-      - name: Run tests
+      - name: pytest with coverage gate
         env:
           AWS_DEFAULT_REGION: us-east-1
           AWS_ACCESS_KEY_ID: testing
@@ -37,16 +43,26 @@ jobs:
           PROPERTY_UUIDS: test-prop-1,test-prop-2
           DYNAMODB_TABLE: hospitality-hq-messages-test
         run: |
-          python -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+          python -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing --cov-fail-under=60
 
-      - name: Check coverage threshold
-        env:
-          AWS_DEFAULT_REGION: us-east-1
-          AWS_ACCESS_KEY_ID: testing
-          AWS_SECRET_ACCESS_KEY: testing
-          SSM_PREFIX: /hospitality-hq-test
-          SLACK_CHANNEL_ID: C_TEST
-          PROPERTY_UUIDS: test-prop-1,test-prop-2
-          DYNAMODB_TABLE: hospitality-hq-messages-test
-        run: |
-          python -m pytest tests/ --cov=src --cov-fail-under=60 -q
+  template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - name: sam validate --lint
+        run: sam validate --lint
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: pip-audit on src requirements
+        run: pip-audit -r src/requirements.txt
