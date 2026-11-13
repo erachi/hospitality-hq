@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  One-time bootstrap: GitHub OIDC provider + deploy role trusted by the
+  hospitality-hq repo on refs/heads/main. Deploy manually with:
+
+    aws cloudformation deploy \
+      --stack-name hospitality-hq-github-oidc \
+      --template-file bootstrap/github-oidc.yaml \
+      --capabilities CAPABILITY_NAMED_IAM \
+      --parameter-overrides GithubRepo=erachi/hospitality-hq
+
+  After deploy, copy the role ARN from the stack outputs and set it as the
+  AWS_DEPLOY_ROLE_ARN repository variable in GitHub (Settings → Variables).
+
+Parameters:
+  GithubRepo:
+    Type: String
+    Description: GitHub repo in "owner/name" form, e.g. erachi/hospitality-hq
+    AllowedPattern: "^[^/]+/[^/]+$"
+
+  GithubBranch:
+    Type: String
+    Default: main
+    Description: Branch the deploy role will trust. CD only runs on this branch.
+
+  CreateOIDCProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Set to "false" if the GitHub OIDC provider already exists in this account
+      (one provider per account; another repo may have created it).
+
+Conditions:
+  ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, "true"]
+
+Resources:
+  GithubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # AWS auto-retrieves and validates the GitHub cert thumbprint since 2023.
+      # Leaving the list empty is supported; keeping the well-known one here
+      # for compatibility with older AWS regions.
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: hospitality-hq-github-deploy
+      Description: >
+        Assumed by the hospitality-hq GitHub Actions deploy workflow via OIDC.
+        Trust is scoped to the single repo + branch.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GithubRepo}:ref:refs/heads/${GithubBranch}
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: SamDeployIAM
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # IAM operations scoped to resources this stack owns.
+              # PowerUserAccess intentionally excludes IAM — these fill the gap
+              # for SAM to manage per-function execution roles.
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRolePolicies
+                  - iam:ListRoleTags
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/hospitality-hq-*
+              # CloudFormation needs to read any policy it attaches.
+              - Effect: Allow
+                Action:
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                Resource: "*"
+
+Outputs:
+  DeployRoleArn:
+    Description: Set this as the AWS_DEPLOY_ROLE_ARN variable in GitHub repo settings.
+    Value: !GetAtt DeployRole.Arn
+
+  GithubOIDCProviderArn:
+    Condition: ShouldCreateOIDCProvider
+    Description: The GitHub OIDC provider ARN (one per AWS account).
+    Value: !Ref GithubOIDCProvider

@@ -121,7 +121,9 @@ You should see:
 
 ## Updating
 
-After making code changes:
+Normal path: **merge to `main`**. The `Deploy` GitHub Actions workflow runs on every successful CI run on `main`, assumes the `hospitality-hq-github-deploy` role via OIDC, and runs `sam build && sam deploy`. See [`bootstrap/README.md`](bootstrap/README.md) for the one-time OIDC setup.
+
+Break-glass local deploy (only when CD is broken):
 
 ```bash
 sam build && sam deploy
