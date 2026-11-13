@@ -5,6 +5,22 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_ref:
+        description: >
+          Git SHA or ref to deploy. Defaults to the triggering ref.
+          Only takes effect when run from the main branch.
+        required: false
+        default: ""
+
+permissions:
+  id-token: write   # OIDC token for AWS AssumeRoleWithWebIdentity (deploy job)
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
 
 jobs:
   lint:
@@ -66,3 +82,40 @@ jobs:
         run: pip install pip-audit
       - name: pip-audit on src requirements
         run: pip-audit -r src/requirements.txt
+
+  deploy:
+    # Runs on push-to-main after all checks pass, and on manual workflow_dispatch.
+    # Never runs on pull_request — guard prevents accidental prod deploys from a PR branch.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      || github.event_name == 'workflow_dispatch'
+    needs: [lint, test, template, security]
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.deploy_ref || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: sam build
+        run: sam build
+
+      - name: sam deploy
+        run: |
+          sam deploy \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --no-progressbar

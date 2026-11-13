@@ -121,9 +121,11 @@ You should see:
 
 ## Updating
 
-Normal path: **merge to `main`**. The `Deploy` GitHub Actions workflow runs on every successful CI run on `main`, assumes the `hospitality-hq-github-deploy` role via OIDC, and runs `sam build && sam deploy`. See [`bootstrap/README.md`](bootstrap/README.md) for the one-time OIDC setup.
+Normal path: **merge to `main`**. The `CI` workflow's `deploy` job runs after the `lint`, `test`, `template`, and `security` jobs all pass on `main`, assumes the `hospitality-hq-github-deploy` role via OIDC, and runs `sam build && sam deploy`. See [`bootstrap/README.md`](bootstrap/README.md) for the one-time OIDC setup.
 
-Break-glass local deploy (only when CD is broken):
+Manual redeploy (e.g. after rotating secrets, or deploying an older SHA): trigger **Actions → CI → Run workflow** on `main`. The optional `deploy_ref` input takes a specific SHA or ref to check out before `sam deploy`.
+
+Break-glass local deploy (only when CD is fully broken — requires `aws configure` set up with credentials that have the same permissions as the CI role, and the AWS region exported as `AWS_REGION=us-east-1` or on the samconfig default):
 
 ```bash
 sam build && sam deploy
