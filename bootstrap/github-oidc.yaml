@@ -103,7 +103,21 @@ Resources:
                   - iam:ListRoleTags
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/hospitality-hq-*
-              # CloudFormation needs to read any policy it attaches.
+              # Customer-managed policies this stack owns (e.g. AppConfigReadPolicy).
+              # CloudFormation generates names like hospitality-hq-<Resource>-<random>.
+              - Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                  - iam:SetDefaultPolicyVersion
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                  - iam:ListPolicyTags
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:policy/hospitality-hq-*
+              # CloudFormation needs to read any policy it attaches to a role.
               - Effect: Allow
                 Action:
                   - iam:GetPolicy
