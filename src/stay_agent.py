@@ -7,9 +7,12 @@ Two entry points, same underlying turn:
   the agent against the combined journal.
 - `handle_mirrored_guest_message` — the mirror just appended a fresh
   guest-source message. The guest turn is already journaled. Run the
-  agent silently (no apology/placeholder posts), gated by both the
-  STAY_CHANNELS_ENABLED and STAY_AUTO_DRAFT_ENABLED flags and the
-  in-stay window predicate so pre-booking chatter doesn't auto-draft.
+  agent silently (no apology/placeholder posts) on every guest message
+  in a stay channel, regardless of booking lifecycle (pre-booking
+  inquiry, in-stay, post-checkout review-reply chatter). Only the
+  STAY_CHANNELS_ENABLED and STAY_AUTO_DRAFT_ENABLED feature flags gate
+  it; the agent itself decides whether a given message warrants a
+  summary, a draft, both, or nothing.
 
 Both paths read the full stay journal plus the property KB and thread
 logs, and optionally propose a guest-visible draft wrapped in
@@ -55,7 +58,6 @@ from stay_models import (
     StayEntry,
 )
 from stay_store import StayStore
-from stay_window import is_in_stay_window
 from thread_logs import ThreadLogs
 from thread_logs import format_for_claude as format_logs
 
@@ -182,13 +184,20 @@ def handle_mirrored_guest_message(
     slack_client: StayChannelSlackClient | None = None,
     stay_store: StayStore | None = None,
 ) -> None:
-    """Auto-draft entry point.
+    """Auto-draft entry point — fires on every guest-sender message.
 
     Called by `stay_provisioner.mirror_message` right after it
     successfully mirrors a fresh guest-source Hospitable message. The
     mirror has already journaled the guest turn, so this path DOES NOT
     journal again — it just reads the (now-updated) journal, asks the
-    hospitality-expert agent for a draft, and posts the draft card.
+    hospitality-expert agent for context + reply, and posts the
+    summary/draft cards the agent emits.
+
+    No booking-lifecycle gate: pre-booking inquiry, mid-stay, and
+    post-checkout review-reply all run through here. The agent itself
+    decides per message whether to emit a <<SUMMARY>>, a <<DRAFT>>,
+    both, or neither (a clean guest sign-off like "thanks, 5-star
+    review, take care!" is expected to produce nothing).
 
     Silent on failure: no apology or placeholder posts. This path
     fires unprompted, so a noise message in the channel every time
@@ -199,12 +208,6 @@ def handle_mirrored_guest_message(
         return
     sender_type = (message or {}).get("sender_type", "").lower()
     if sender_type != "guest":
-        return
-    if not is_in_stay_window(stay_row.get("check_in", ""), stay_row.get("check_out", "")):
-        logger.info(
-            "stay_agent: skipping auto-draft for %s — outside in-stay window",
-            reservation_uuid,
-        )
         return
 
     channel_id = stay_row.get("channel_id", "")
@@ -501,6 +504,7 @@ Triage every incoming situation before responding. One message can span multiple
 4. Guest question the KB does NOT yet cover — emit a <<DRAFT>> plus a <<KB_UPDATE>> adding a new FAQ.
 5. Novel policy/judgment call (vendor type, refund, special request not in precedents) — emit a <<DRAFT>> plus a <<KB_UPDATE>> adding a precedent.
 6. Chat with VJ/Maggie (they are asking YOU, not the guest) — just answer in chat. No tags.
+7. Guest sign-off / closed loop — a warm thanks after checkout, a review mention, a goodbye, any message where the conversation is clearly wrapped and nothing is open. Emit NOTHING: no <<SUMMARY>>, no <<DRAFT>>, no other tag. Posting a draft reply or a stale recap on a clean sign-off clutters the channel and nudges VJ or Maggie to send something nobody needs.
 
 Take the obvious hospitality move without asking VJ/Maggie for permission on standard-of-care defaults (acknowledge an issue, offer a replacement for a broken amenity, apologize and remediate for sensory issues, confirm a late checkout when the calendar allows). Ask only when there is a real policy call to make.
 
@@ -534,15 +538,17 @@ Output structure. All tags are plain text, each on its own line. Text OUTSIDE ta
 
 - <<RUNBOOK for=Ashur poc=Allyson>> ... <<END_RUNBOOK>> — plain-text work order. Include: what needs to happen, where in the property, deadline (before next check-in / within 24h / etc.), access instructions (coordinate with Allyson), and acceptance criteria ("coffee pot replaced and brews a full pot cleanly").
 
-- <<SUMMARY>> ... <<END_SUMMARY>> — a 2-4 sentence recap of the conversation so far for VJ or Maggie: where the stay stands (pre-arrival / in-stay / post-checkout), what the guest has said, what we've already told them, and what's still open. Plain text only. Not guest-visible — it's rendered as a card above the draft so humans can re-enter context fast. Emit this whenever this turn was auto-triggered by a fresh inbound guest message.
+- <<SUMMARY>> ... <<END_SUMMARY>> — a 2-4 sentence recap of the conversation so far for VJ or Maggie: where the stay stands (pre-arrival / in-stay / post-checkout), what the guest has said, what we've already told them, and what's still open. Plain text only. Not guest-visible — it's rendered as a card above the draft so humans can re-enter context fast. Emit this on an auto-triggered turn WHEN there's live context someone needs to re-enter — an open question, an unresolved issue, a decision pending. SKIP it on a clean sign-off (triage case 7 above) and on a message so minor the one-line guest text itself tells the whole story.
 """
 
 
 _AUTO_TRIGGER_HINT = (
     "This turn was auto-triggered by a new inbound guest message — no human "
-    "has weighed in yet. Emit a <<SUMMARY>> recapping the conversation so far, "
-    "and if the guest's latest turn warrants a reply, produce a <<DRAFT>>; do "
-    "not ask VJ or Maggie first."
+    "has weighed in yet. Decide per message what to emit: a <<SUMMARY>> when "
+    "there's live context someone needs to re-enter, a <<DRAFT>> when the "
+    "guest's turn warrants a reply, both when both apply. On a clean sign-off "
+    "(triage case 7: thanks after checkout, review mention, goodbye, closed "
+    "loop) emit NOTHING — no summary, no draft. Do not ask VJ or Maggie first."
 )
 
 
