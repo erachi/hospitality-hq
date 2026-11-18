@@ -16,6 +16,7 @@ import stay_agent
 from stay_agent import (
     _build_turns,
     _extract_draft,
+    _extract_summary,
     _render_entry_body,
     handle_channel_message,
     handle_discard_draft,
@@ -70,6 +71,45 @@ def test_extract_draft_handles_missing_close_tag():
     # The whole thing stays in chat including the open tag so the user
     # notices the model misbehaved.
     assert "half-written" in chat
+
+
+def test_extract_draft_strips_summary_block_from_chat():
+    """A SUMMARY block renders as its own card; it must not double-post
+    as part of the chat preamble."""
+    text = (
+        "pre\n"
+        "<<SUMMARY>>\nGuest asked about late checkout\n<<END_SUMMARY>>\n"
+        "after\n"
+        "<<DRAFT>>\nHi Jane!\n<<END_DRAFT>>"
+    )
+    chat, draft = _extract_draft(text)
+    assert "SUMMARY" not in chat
+    assert "Guest asked" not in chat
+    assert "pre" in chat and "after" in chat
+    assert draft == "Hi Jane!"
+
+
+# ─── _extract_summary ───────────────────────────────────────────────────
+
+
+def test_extract_summary_returns_block_body():
+    text = (
+        "Here's my take.\n"
+        "<<SUMMARY>>\nGuest Jane asked about late checkout; we confirmed 1pm.\n"
+        "<<END_SUMMARY>>\n"
+        "<<DRAFT>>\nhi!\n<<END_DRAFT>>"
+    )
+    assert _extract_summary(text).startswith("Guest Jane asked")
+
+
+def test_extract_summary_returns_empty_when_absent():
+    assert _extract_summary("just chatting") == ""
+    assert _extract_summary("") == ""
+
+
+def test_extract_summary_returns_empty_on_malformed_tags():
+    """Missing close tag → empty, so we never post a half-emitted summary."""
+    assert _extract_summary("<<SUMMARY>>\nhalf-written") == ""
 
 
 # ─── _build_turns ───────────────────────────────────────────────────────
@@ -504,6 +544,96 @@ def test_handle_mirrored_guest_message_posts_draft_card(
 
 
 @mock_aws
+def test_handle_mirrored_guest_message_posts_summary_card_before_draft_card(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    """On an auto-triggered turn, the two cards VJ sees at the tail are:
+    (1) the conversation summary, (2) the draft reply — in that order,
+    with no plain-text chat preamble between them."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1700000000.9"}
+    model_output = (
+        "Reasoning for VJ: the KB covers late checkout.\n"
+        "<<SUMMARY>>\n"
+        "Jane checked in on 11/20 and is asking about a 1pm late checkout on "
+        "11/25. KB allows up to 2pm with no fee when the calendar is clear — "
+        "11/25 has no same-day arrival.\n"
+        "<<END_SUMMARY>>\n"
+        "<<DRAFT>>\n"
+        "Hi Jane — 1pm works great, enjoy the extra time! See you Friday.\n"
+        "<<END_DRAFT>>"
+    )
+    with patch("stay_agent._call_claude", return_value=model_output):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message("Can I do 1pm checkout?"),
+            slack_client=slack,
+        )
+
+    # Exactly two cards, summary then draft — no chat preamble.
+    assert slack.post_message.call_count == 2
+    first_blocks = slack.post_message.call_args_list[0].kwargs.get("blocks") or []
+    second_blocks = slack.post_message.call_args_list[1].kwargs.get("blocks") or []
+
+    # First card: summary — contains the "Conversation so far" header and
+    # the summary body, and has NO action buttons.
+    first_text = " ".join(
+        b.get("text", {}).get("text", "") for b in first_blocks if b.get("type") == "section"
+    )
+    assert "Conversation so far" in first_text
+    assert "late checkout" in first_text
+    assert not any(b.get("type") == "actions" for b in first_blocks)
+
+    # Second card: draft — contains the Send/Discard action buttons.
+    assert any(b.get("type") == "actions" for b in second_blocks)
+    action_block = next(b for b in second_blocks if b.get("type") == "actions")
+    ids = [e.get("action_id") for e in action_block["elements"]]
+    assert "stay_send_draft" in ids
+    assert "stay_discard_draft" in ids
+
+    # Agent-entry metadata captures both artifacts.
+    journal = StayStore().get("res-x")
+    agent_entries = [e for e in journal.entries if e.source == SOURCE_SLACK_AGENT]
+    assert agent_entries
+    meta = agent_entries[-1].metadata
+    assert meta["has_summary"] is True
+    assert "late checkout" in meta["summary_text"]
+    assert meta["has_draft"] is True
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_without_summary_still_posts_draft_card(
+    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+):
+    """Model emits a draft but no summary (e.g. legacy output). We must
+    still post the draft card and we must not crash. The chat preamble
+    stays in play as a fallback so the draft card isn't orphaned."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1700000000.9"}
+    model_output = (
+        "AC in Scottsdale heat — urgent.\n<<DRAFT>>\nSo sorry — sending someone now.\n<<END_DRAFT>>"
+    )
+    with patch("stay_agent._call_claude", return_value=model_output):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message("AC quit"),
+            slack_client=slack,
+        )
+
+    # Legacy shape: chat preamble + draft card. No summary card.
+    assert slack.post_message.call_count == 2
+    first_blocks = slack.post_message.call_args_list[0].kwargs.get("blocks") or []
+    # First post is plain chat text, not a card.
+    assert not first_blocks
+    second_blocks = slack.post_message.call_args_list[1].kwargs.get("blocks") or []
+    assert any(b.get("type") == "actions" for b in second_blocks)
+
+
+@mock_aws
 def test_handle_mirrored_guest_message_does_not_journal_user_turn(
     auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
 ):
@@ -649,5 +779,8 @@ def test_build_system_prompt_appends_auto_trigger_hint():
         thread_logs_text="",
         auto_trigger=False,
     )
-    assert "auto-triggered" in with_hint.lower()
-    assert "auto-triggered" not in without_hint.lower()
+    # Key on a phrase unique to the hint block so the test doesn't fire
+    # on incidental uses of "auto-triggered" elsewhere in the prompt.
+    assert "no human" in with_hint.lower()
+    assert "do not ask vj or maggie first" in with_hint.lower()
+    assert "no human" not in without_hint.lower()
