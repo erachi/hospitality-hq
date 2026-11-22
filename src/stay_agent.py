@@ -7,9 +7,12 @@ Two entry points, same underlying turn:
   the agent against the combined journal.
 - `handle_mirrored_guest_message` — the mirror just appended a fresh
   guest-source message. The guest turn is already journaled. Run the
-  agent silently (no apology/placeholder posts), gated by both the
-  STAY_CHANNELS_ENABLED and STAY_AUTO_DRAFT_ENABLED flags and the
-  in-stay window predicate so pre-booking chatter doesn't auto-draft.
+  agent silently (no apology/placeholder posts) on every guest message
+  in a stay channel, regardless of booking lifecycle (pre-booking
+  inquiry, in-stay, post-checkout review-reply chatter). Only the
+  STAY_CHANNELS_ENABLED and STAY_AUTO_DRAFT_ENABLED feature flags gate
+  it; the agent itself decides whether a given message warrants a
+  summary, a draft, both, or nothing.
 
 Both paths read the full stay journal plus the property KB and thread
 logs, and optionally propose a guest-visible draft wrapped in
@@ -55,7 +58,6 @@ from stay_models import (
     StayEntry,
 )
 from stay_store import StayStore
-from stay_window import is_in_stay_window
 from thread_logs import ThreadLogs
 from thread_logs import format_for_claude as format_logs
 
@@ -76,6 +78,12 @@ _MAX_TOKENS = 800
 # model to emit. Case-sensitive.
 _DRAFT_OPEN = "<<DRAFT>>"
 _DRAFT_CLOSE = "<<END_DRAFT>>"
+
+# Summary fencing. Emitted on auto-triggered turns (fresh guest inbound);
+# rendered as a Block Kit card that sits above the draft card so VJ or
+# Maggie can re-enter context quickly before reviewing the draft.
+_SUMMARY_OPEN = "<<SUMMARY>>"
+_SUMMARY_CLOSE = "<<END_SUMMARY>>"
 
 
 # ─── Public entry points ───────────────────────────────────────────────
@@ -176,13 +184,20 @@ def handle_mirrored_guest_message(
     slack_client: StayChannelSlackClient | None = None,
     stay_store: StayStore | None = None,
 ) -> None:
-    """Auto-draft entry point.
+    """Auto-draft entry point — fires on every guest-sender message.
 
     Called by `stay_provisioner.mirror_message` right after it
     successfully mirrors a fresh guest-source Hospitable message. The
     mirror has already journaled the guest turn, so this path DOES NOT
     journal again — it just reads the (now-updated) journal, asks the
-    hospitality-expert agent for a draft, and posts the draft card.
+    hospitality-expert agent for context + reply, and posts the
+    summary/draft cards the agent emits.
+
+    No booking-lifecycle gate: pre-booking inquiry, mid-stay, and
+    post-checkout review-reply all run through here. The agent itself
+    decides per message whether to emit a <<SUMMARY>>, a <<DRAFT>>,
+    both, or neither (a clean guest sign-off like "thanks, 5-star
+    review, take care!" is expected to produce nothing).
 
     Silent on failure: no apology or placeholder posts. This path
     fires unprompted, so a noise message in the channel every time
@@ -193,12 +208,6 @@ def handle_mirrored_guest_message(
         return
     sender_type = (message or {}).get("sender_type", "").lower()
     if sender_type != "guest":
-        return
-    if not is_in_stay_window(stay_row.get("check_in", ""), stay_row.get("check_out", "")):
-        logger.info(
-            "stay_agent: skipping auto-draft for %s — outside in-stay window",
-            reservation_uuid,
-        )
         return
 
     channel_id = stay_row.get("channel_id", "")
@@ -275,6 +284,7 @@ def _run_agent_turn(
         return
 
     chat_text, draft_text = _extract_draft(response_text)
+    summary_text = _extract_summary(response_text)
     agent_entry = StayEntry.new(
         source=SOURCE_SLACK_AGENT,
         author="agent",
@@ -282,6 +292,8 @@ def _run_agent_turn(
         metadata={
             "has_draft": bool(draft_text),
             "draft_text": draft_text or "",
+            "has_summary": bool(summary_text),
+            "summary_text": summary_text or "",
             "model": DRAFT_MODEL,
             "auto_trigger": auto_trigger,
         },
@@ -298,16 +310,19 @@ def _run_agent_turn(
     # Post chat to Slack. The chat portion can be empty if the model
     # jumped straight to a draft — surface a minimal preamble so the
     # draft card doesn't appear orphaned. On auto-trigger, stay silent
-    # when the model produced nothing of substance.
+    # when the model produced nothing of substance: the summary card
+    # (below) is the ambient-bot voice for this path.
     if auto_trigger:
-        if draft_text and chat_text:
+        # Chat preamble is suppressed on auto-trigger — the summary card
+        # replaces it. We only post chat when the model produced neither
+        # a summary nor a draft but did have something to say, and even
+        # then only if it also produced an actionable DRAFT (otherwise
+        # we'd clutter the channel every time Claude returns a hiccup).
+        if draft_text and chat_text and not summary_text:
             try:
                 slack_client.post_message(channel_id, text=chat_text)
             except Exception as e:
                 logger.warning("stay_agent: chat post failed: %s", e)
-        # No draft and no chat → nothing to say. No draft but chat →
-        # the model is "thinking out loud" without actionable output;
-        # also skip to avoid cluttering the channel ambient-bot-style.
     else:
         chat_to_post = chat_text or (
             "Here's a draft you can review:" if draft_text else ":speech_balloon: (no reply)"
@@ -316,6 +331,20 @@ def _run_agent_turn(
             slack_client.post_message(channel_id, text=chat_to_post)
         except Exception as e:
             logger.warning("stay_agent: chat post failed: %s", e)
+
+    # Summary card — posted BEFORE the draft card so the reviewer has
+    # context when they scan the draft. Emitted on any turn where the
+    # model produced a <<SUMMARY>> block; the system prompt asks for one
+    # on every auto-triggered turn but humans can also ask for one.
+    if summary_text:
+        try:
+            _post_summary_card(
+                slack_client=slack_client,
+                channel_id=channel_id,
+                summary_text=summary_text,
+            )
+        except Exception as e:
+            logger.warning("stay_agent: summary card post failed: %s", e)
 
     # Draft card (optional). The draft text is embedded on each button
     # so the send/discard handlers don't need to re-read the journal to
@@ -475,6 +504,7 @@ Triage every incoming situation before responding. One message can span multiple
 4. Guest question the KB does NOT yet cover — emit a <<DRAFT>> plus a <<KB_UPDATE>> adding a new FAQ.
 5. Novel policy/judgment call (vendor type, refund, special request not in precedents) — emit a <<DRAFT>> plus a <<KB_UPDATE>> adding a precedent.
 6. Chat with VJ/Maggie (they are asking YOU, not the guest) — just answer in chat. No tags.
+7. Guest sign-off / closed loop — a warm thanks after checkout, a review mention, a goodbye, any message where the conversation is clearly wrapped and nothing is open. Emit NOTHING: no <<SUMMARY>>, no <<DRAFT>>, no other tag. Posting a draft reply or a stale recap on a clean sign-off clutters the channel and nudges VJ or Maggie to send something nobody needs.
 
 Take the obvious hospitality move without asking VJ/Maggie for permission on standard-of-care defaults (acknowledge an issue, offer a replacement for a broken amenity, apologize and remediate for sensory issues, confirm a late checkout when the calendar allows). Ask only when there is a real policy call to make.
 
@@ -507,13 +537,18 @@ Output structure. All tags are plain text, each on its own line. Text OUTSIDE ta
   Before emitting a <<KB_UPDATE>>, check the KB block below. If an FAQ or precedent already covers the situation, do NOT add a duplicate — just draft from it.
 
 - <<RUNBOOK for=Ashur poc=Allyson>> ... <<END_RUNBOOK>> — plain-text work order. Include: what needs to happen, where in the property, deadline (before next check-in / within 24h / etc.), access instructions (coordinate with Allyson), and acceptance criteria ("coffee pot replaced and brews a full pot cleanly").
+
+- <<SUMMARY>> ... <<END_SUMMARY>> — a 2-4 sentence recap of the conversation so far for VJ or Maggie: where the stay stands (pre-arrival / in-stay / post-checkout), what the guest has said, what we've already told them, and what's still open. Plain text only. Not guest-visible — it's rendered as a card above the draft so humans can re-enter context fast. Emit this on an auto-triggered turn WHEN there's live context someone needs to re-enter — an open question, an unresolved issue, a decision pending. SKIP it on a clean sign-off (triage case 7 above) and on a message so minor the one-line guest text itself tells the whole story.
 """
 
 
 _AUTO_TRIGGER_HINT = (
     "This turn was auto-triggered by a new inbound guest message — no human "
-    "has weighed in yet. If the guest's latest turn warrants a reply, produce "
-    "a <<DRAFT>>; do not ask VJ or Maggie first."
+    "has weighed in yet. Decide per message what to emit: a <<SUMMARY>> when "
+    "there's live context someone needs to re-enter, a <<DRAFT>> when the "
+    "guest's turn warrants a reply, both when both apply. On a clean sign-off "
+    "(triage case 7: thanks after checkout, review mention, goodbye, closed "
+    "loop) emit NOTHING — no summary, no draft. Do not ask VJ or Maggie first."
 )
 
 
@@ -665,24 +700,87 @@ def _call_claude(system_prompt: str, messages: list[dict]) -> str:
 # ─── Draft handling ─────────────────────────────────────────────────────
 
 
+def _extract_tagged_block(text: str, open_tag: str, close_tag: str) -> tuple[str, str]:
+    """Split `text` into (remainder, block_contents) around a tagged block.
+
+    If either tag is missing or malformed the whole string is treated as
+    remainder and the block is empty. The remainder is `text` with the
+    open-tag → close-tag range (inclusive) spliced out so a caller can
+    chain extractions.
+    """
+    if not text:
+        return "", ""
+    open_idx = text.find(open_tag)
+    close_idx = text.find(close_tag)
+    if open_idx == -1 or close_idx == -1 or close_idx <= open_idx:
+        return text, ""
+    block = text[open_idx + len(open_tag) : close_idx].strip()
+    remainder = text[:open_idx] + text[close_idx + len(close_tag) :]
+    return remainder, block
+
+
 def _extract_draft(response_text: str) -> tuple[str, str]:
     """Split the model output into (chat_text, draft_text).
 
-    Looks for `<<DRAFT>>` / `<<END_DRAFT>>` tags each on their own line
-    (or inline — we accept both). If either tag is missing the whole
-    output is treated as chat and no draft is surfaced.
+    Chat is everything that isn't inside a `<<DRAFT>>...<<END_DRAFT>>`
+    or `<<SUMMARY>>...<<END_SUMMARY>>` block — the summary carves out
+    to its own card so it shouldn't double-post as chat preamble. If
+    DRAFT tags are missing or malformed, draft is empty and the (de-
+    summarized) output is treated as chat.
     """
     if not response_text:
         return "", ""
-    open_idx = response_text.find(_DRAFT_OPEN)
-    close_idx = response_text.find(_DRAFT_CLOSE)
+    # Peel the summary off first so it doesn't leak into chat preamble.
+    remainder, _ = _extract_tagged_block(response_text, _SUMMARY_OPEN, _SUMMARY_CLOSE)
+    open_idx = remainder.find(_DRAFT_OPEN)
+    close_idx = remainder.find(_DRAFT_CLOSE)
     if open_idx == -1 or close_idx == -1 or close_idx <= open_idx:
-        return response_text.strip(), ""
-    chat = response_text[:open_idx].strip()
-    draft = response_text[open_idx + len(_DRAFT_OPEN) : close_idx].strip()
+        return remainder.strip(), ""
+    chat = remainder[:open_idx].strip()
+    draft = remainder[open_idx + len(_DRAFT_OPEN) : close_idx].strip()
     # Also drop anything after the closing tag — occasionally the
     # model adds a trailing comment.
     return chat, draft
+
+
+def _extract_summary(response_text: str) -> str:
+    """Return the `<<SUMMARY>>...<<END_SUMMARY>>` body, or empty if absent."""
+    _, summary = _extract_tagged_block(response_text or "", _SUMMARY_OPEN, _SUMMARY_CLOSE)
+    return summary
+
+
+def _post_summary_card(
+    *,
+    slack_client: StayChannelSlackClient,
+    channel_id: str,
+    summary_text: str,
+) -> dict:
+    """Block Kit card recapping the conversation so far.
+
+    Posted right before the draft card on auto-trigger turns so VJ or
+    Maggie can re-enter context without scrolling the whole channel.
+    Not guest-visible.
+    """
+    # Slack caps a section text at 3000 chars. Summaries are 2–4
+    # sentences so we almost never approach this, but defend against
+    # a runaway model.
+    body = summary_text.strip()
+    if len(body) > 2800:
+        body = body[:2800].rstrip() + "…"
+    blocks: list[dict] = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f":memo: *Conversation so far*\n{body}",
+            },
+        },
+    ]
+    return slack_client.post_message(
+        channel_id,
+        text="Conversation summary",
+        blocks=blocks,
+    )
 
 
 def _post_draft_card(

@@ -16,6 +16,7 @@ import stay_agent
 from stay_agent import (
     _build_turns,
     _extract_draft,
+    _extract_summary,
     _render_entry_body,
     handle_channel_message,
     handle_discard_draft,
@@ -70,6 +71,45 @@ def test_extract_draft_handles_missing_close_tag():
     # The whole thing stays in chat including the open tag so the user
     # notices the model misbehaved.
     assert "half-written" in chat
+
+
+def test_extract_draft_strips_summary_block_from_chat():
+    """A SUMMARY block renders as its own card; it must not double-post
+    as part of the chat preamble."""
+    text = (
+        "pre\n"
+        "<<SUMMARY>>\nGuest asked about late checkout\n<<END_SUMMARY>>\n"
+        "after\n"
+        "<<DRAFT>>\nHi Jane!\n<<END_DRAFT>>"
+    )
+    chat, draft = _extract_draft(text)
+    assert "SUMMARY" not in chat
+    assert "Guest asked" not in chat
+    assert "pre" in chat and "after" in chat
+    assert draft == "Hi Jane!"
+
+
+# ─── _extract_summary ───────────────────────────────────────────────────
+
+
+def test_extract_summary_returns_block_body():
+    text = (
+        "Here's my take.\n"
+        "<<SUMMARY>>\nGuest Jane asked about late checkout; we confirmed 1pm.\n"
+        "<<END_SUMMARY>>\n"
+        "<<DRAFT>>\nhi!\n<<END_DRAFT>>"
+    )
+    assert _extract_summary(text).startswith("Guest Jane asked")
+
+
+def test_extract_summary_returns_empty_when_absent():
+    assert _extract_summary("just chatting") == ""
+    assert _extract_summary("") == ""
+
+
+def test_extract_summary_returns_empty_on_malformed_tags():
+    """Missing close tag → empty, so we never post a half-emitted summary."""
+    assert _extract_summary("<<SUMMARY>>\nhalf-written") == ""
 
 
 # ─── _build_turns ───────────────────────────────────────────────────────
@@ -448,12 +488,6 @@ def auto_draft_on(monkeypatch):
     monkeypatch.setattr(stay_agent, "STAY_AUTO_DRAFT_ENABLED", True, raising=False)
 
 
-@pytest.fixture
-def _in_stay_today(monkeypatch):
-    """Pin `is_in_stay_window` to True so date-of-run doesn't flake tests."""
-    monkeypatch.setattr(stay_agent, "is_in_stay_window", lambda *a, **k: True)
-
-
 def _guest_message(body: str = "AC quit", msg_id: str = "m-live") -> dict:
     return {
         "id": msg_id,
@@ -465,7 +499,7 @@ def _guest_message(body: str = "AC quit", msg_id: str = "m-live") -> dict:
 
 @mock_aws
 def test_handle_mirrored_guest_message_posts_draft_card(
-    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+    auto_draft_on, stay_channels_table, stay_journal_bucket
 ):
     row = _seed_live_stay()
     slack = MagicMock()
@@ -504,8 +538,98 @@ def test_handle_mirrored_guest_message_posts_draft_card(
 
 
 @mock_aws
+def test_handle_mirrored_guest_message_posts_summary_card_before_draft_card(
+    auto_draft_on, stay_channels_table, stay_journal_bucket
+):
+    """On an auto-triggered turn, the two cards VJ sees at the tail are:
+    (1) the conversation summary, (2) the draft reply — in that order,
+    with no plain-text chat preamble between them."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1700000000.9"}
+    model_output = (
+        "Reasoning for VJ: the KB covers late checkout.\n"
+        "<<SUMMARY>>\n"
+        "Jane checked in on 11/20 and is asking about a 1pm late checkout on "
+        "11/25. KB allows up to 2pm with no fee when the calendar is clear — "
+        "11/25 has no same-day arrival.\n"
+        "<<END_SUMMARY>>\n"
+        "<<DRAFT>>\n"
+        "Hi Jane — 1pm works great, enjoy the extra time! See you Friday.\n"
+        "<<END_DRAFT>>"
+    )
+    with patch("stay_agent._call_claude", return_value=model_output):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message("Can I do 1pm checkout?"),
+            slack_client=slack,
+        )
+
+    # Exactly two cards, summary then draft — no chat preamble.
+    assert slack.post_message.call_count == 2
+    first_blocks = slack.post_message.call_args_list[0].kwargs.get("blocks") or []
+    second_blocks = slack.post_message.call_args_list[1].kwargs.get("blocks") or []
+
+    # First card: summary — contains the "Conversation so far" header and
+    # the summary body, and has NO action buttons.
+    first_text = " ".join(
+        b.get("text", {}).get("text", "") for b in first_blocks if b.get("type") == "section"
+    )
+    assert "Conversation so far" in first_text
+    assert "late checkout" in first_text
+    assert not any(b.get("type") == "actions" for b in first_blocks)
+
+    # Second card: draft — contains the Send/Discard action buttons.
+    assert any(b.get("type") == "actions" for b in second_blocks)
+    action_block = next(b for b in second_blocks if b.get("type") == "actions")
+    ids = [e.get("action_id") for e in action_block["elements"]]
+    assert "stay_send_draft" in ids
+    assert "stay_discard_draft" in ids
+
+    # Agent-entry metadata captures both artifacts.
+    journal = StayStore().get("res-x")
+    agent_entries = [e for e in journal.entries if e.source == SOURCE_SLACK_AGENT]
+    assert agent_entries
+    meta = agent_entries[-1].metadata
+    assert meta["has_summary"] is True
+    assert "late checkout" in meta["summary_text"]
+    assert meta["has_draft"] is True
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_without_summary_still_posts_draft_card(
+    auto_draft_on, stay_channels_table, stay_journal_bucket
+):
+    """Model emits a draft but no summary (e.g. legacy output). We must
+    still post the draft card and we must not crash. The chat preamble
+    stays in play as a fallback so the draft card isn't orphaned."""
+    row = _seed_live_stay()
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1700000000.9"}
+    model_output = (
+        "AC in Scottsdale heat — urgent.\n<<DRAFT>>\nSo sorry — sending someone now.\n<<END_DRAFT>>"
+    )
+    with patch("stay_agent._call_claude", return_value=model_output):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-x",
+            stay_row=row,
+            message=_guest_message("AC quit"),
+            slack_client=slack,
+        )
+
+    # Legacy shape: chat preamble + draft card. No summary card.
+    assert slack.post_message.call_count == 2
+    first_blocks = slack.post_message.call_args_list[0].kwargs.get("blocks") or []
+    # First post is plain chat text, not a card.
+    assert not first_blocks
+    second_blocks = slack.post_message.call_args_list[1].kwargs.get("blocks") or []
+    assert any(b.get("type") == "actions" for b in second_blocks)
+
+
+@mock_aws
 def test_handle_mirrored_guest_message_does_not_journal_user_turn(
-    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+    auto_draft_on, stay_channels_table, stay_journal_bucket
 ):
     """The mirror already appended the guest turn — the dispatcher must
     not double-write it (which would inflate the agent's context and
@@ -530,7 +654,7 @@ def test_handle_mirrored_guest_message_does_not_journal_user_turn(
 
 @mock_aws
 def test_handle_mirrored_guest_message_silent_when_no_draft_tag(
-    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+    auto_draft_on, stay_channels_table, stay_journal_bucket
 ):
     """No `<<DRAFT>>` in the model output → auto path must not post the
     human-trigger `(no reply)` placeholder. Channel stays clean."""
@@ -548,7 +672,7 @@ def test_handle_mirrored_guest_message_silent_when_no_draft_tag(
 
 @mock_aws
 def test_handle_mirrored_guest_message_silent_on_claude_error(
-    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+    auto_draft_on, stay_channels_table, stay_journal_bucket
 ):
     """Claude failure in the auto path is silent — no apology post."""
     row = _seed_live_stay()
@@ -565,7 +689,7 @@ def test_handle_mirrored_guest_message_silent_on_claude_error(
 
 @mock_aws
 def test_handle_mirrored_guest_message_noop_when_flag_off(
-    monkeypatch, _in_stay_today, stay_channels_table, stay_journal_bucket
+    monkeypatch, stay_channels_table, stay_journal_bucket
 ):
     monkeypatch.setattr(stay_agent, "STAY_CHANNELS_ENABLED", True, raising=False)
     monkeypatch.setattr(stay_agent, "STAY_AUTO_DRAFT_ENABLED", False, raising=False)
@@ -583,33 +707,97 @@ def test_handle_mirrored_guest_message_noop_when_flag_off(
 
 
 @mock_aws
-def test_handle_mirrored_guest_message_noop_outside_in_stay_window(
+def test_handle_mirrored_guest_message_fires_outside_stay_window(
     auto_draft_on, stay_channels_table, stay_journal_bucket
 ):
-    """Pre-booking inquiries (today << check_in) must not auto-draft."""
+    """Post-checkout guest messages (today > check_out) STILL fire the
+    auto-draft path. Abby's "thanks, 5-star review" one-day-after-checkout
+    reply is the motivating case: the window gate was removed so the
+    agent can at least look at the message and decide for itself whether
+    a reply is warranted."""
+    # Build a stay whose check_out is clearly in the past so a naive
+    # window check would have short-circuited.
+    sc = StayChannels()
+    sc.put(
+        reservation_uuid="res-past",
+        channel_id="C_STAY_PAST",
+        channel_name="stay-palm-abby-20200101",
+        property_id="prop-palm",
+        property_name="The Palm Club",
+        guest_name="Abby",
+        check_in="2020-01-01",
+        check_out="2020-01-05",
+        journal_s3_key="stays/res-past.json",
+    )
+    store = StayStore()
+    j = StayJournal.new(
+        reservation_uuid="res-past",
+        property_id="prop-palm",
+        property_name="The Palm Club",
+        guest_name="Abby",
+        check_in="2020-01-01",
+        check_out="2020-01-05",
+    )
+    j.append(StayEntry.new(source=SOURCE_HOSPITABLE_GUEST, author="guest", body="had a great time"))
+    store.put(j)
+    row = sc.get_by_reservation("res-past")
+
+    slack = MagicMock()
+    slack.post_message.return_value = {"ok": True, "ts": "1700000000.9"}
+    model_output = (
+        "<<SUMMARY>>\nAbby stayed Jan 1-5. Just replied to our review request "
+        "asking about availability for a return visit in March.\n<<END_SUMMARY>>\n"
+        "<<DRAFT>>\nThanks Abby! We'd love to have you back — I'll check March "
+        "and get back to you shortly.\n<<END_DRAFT>>"
+    )
+    with patch("stay_agent._call_claude", return_value=model_output):
+        handle_mirrored_guest_message(
+            reservation_uuid="res-past",
+            stay_row=row,
+            message={
+                "id": "m-postcheckout",
+                "body": "any room in March?",
+                "sender_type": "guest",
+                "created_at": "2020-01-06T17:00:00Z",
+            },
+            slack_client=slack,
+        )
+
+    # Two cards posted — proof the window gate is no longer in play.
+    assert slack.post_message.call_count == 2
+
+
+@mock_aws
+def test_handle_mirrored_guest_message_posts_nothing_for_signoff(
+    auto_draft_on, stay_channels_table, stay_journal_bucket
+):
+    """The model's "clean sign-off, say nothing" response is empty output.
+    Both cards must be suppressed so Abby's "thanks, 5-star review 🌴💗
+    take care!" doesn't nudge VJ or Maggie to send a reply nobody needs."""
     row = _seed_live_stay()
     slack = MagicMock()
-    # No _in_stay_today fixture — use the real predicate, which returns
-    # False because today (whenever tests run) is not between 2026-11-19
-    # and 2026-11-25 for the seeded stay. We also patch it explicitly to
-    # avoid false negatives if someone runs these tests in late 2026.
-    with (
-        patch("stay_agent.is_in_stay_window", return_value=False),
-        patch("stay_agent._call_claude") as mock_claude,
-    ):
+    with patch("stay_agent._call_claude", return_value=""):
         handle_mirrored_guest_message(
             reservation_uuid="res-x",
             stay_row=row,
-            message=_guest_message(),
+            message=_guest_message("thanks, 5-star review — take care!"),
             slack_client=slack,
         )
-    mock_claude.assert_not_called()
     slack.post_message.assert_not_called()
+
+    # Agent turn was still journaled so we can see the model decided to
+    # stay silent (metadata flags are both False).
+    journal = StayStore().get("res-x")
+    agent_entries = [e for e in journal.entries if e.source == SOURCE_SLACK_AGENT]
+    assert agent_entries
+    meta = agent_entries[-1].metadata
+    assert meta["has_summary"] is False
+    assert meta["has_draft"] is False
 
 
 @mock_aws
 def test_handle_mirrored_guest_message_noop_for_host_sender(
-    auto_draft_on, _in_stay_today, stay_channels_table, stay_journal_bucket
+    auto_draft_on, stay_channels_table, stay_journal_bucket
 ):
     """Defence in depth — even if the mirror forgot to filter, host
     messages must not trigger a draft."""
@@ -649,5 +837,8 @@ def test_build_system_prompt_appends_auto_trigger_hint():
         thread_logs_text="",
         auto_trigger=False,
     )
-    assert "auto-triggered" in with_hint.lower()
-    assert "auto-triggered" not in without_hint.lower()
+    # Key on a phrase unique to the hint block so the test doesn't fire
+    # on incidental uses of "auto-triggered" elsewhere in the prompt.
+    assert "no human" in with_hint.lower()
+    assert "do not ask vj or maggie first" in with_hint.lower()
+    assert "no human" not in without_hint.lower()
