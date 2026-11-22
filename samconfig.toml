@@ -17,4 +17,6 @@ parameter_overrides = [
     "PropertyUuids=f8236d9d-988a-4192-9d16-2927b0b9ad8e,3278e9cb-9239-487f-aa51-cbfbaf4b7570",
     "SSMPrefix=/hospitality-hq",
     "OpsSlackChannelId=C0ATVHPQG3W",
+    "StayChannelsEnabled=true",
+    "StayAutoDraftEnabled=true",
 ]
